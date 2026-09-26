@@ -17,18 +17,23 @@
   `sttl` / `swin` separate classes because of the testbed; both inflate clean scores. FEINT surfaces
   them (SHAP, single-feature attacks) rather than fixing them.
 - **Sampling.** CIC results use a de-duplicated 10 % per-class sample (253 k flows) for CPU
-  budget; UNSW uses the full official split. One seed; no confidence intervals yet.
-- **Not implemented from the spec:** self-captured lab pcaps via CICFlowMeter, React dashboard
-  (replaced by generated PNG/Markdown reports and a JSON API), model-stealing experiments.
+  budget; UNSW uses the full official split. The full study (incl. adversarial training, poisoning,
+  counterfactuals) is single-seed; the multi-seed CI study covers clean metrics and constrained curves
+  of the undefended and robust-feature models only (adversarial training x3 seeds is ~1.5 h per dataset).
+- **Not implemented from the spec:** self-captured lab pcaps via CICFlowMeter (needs an isolated lab
+  network and traffic generation; not feasible on this machine). The React dashboard is replaced by a
+  static JavaScript dashboard over the committed JSON reports ([demo](https://rakshit-737.github.io/feint/demo/)).
 
 ## Roadmap
 
-- [ ] Multiple seeds with confidence intervals; bootstrap the robustness curves
+- [x] Multiple seeds with confidence intervals (`feint seeds`)
+- [x] Model-stealing experiment (`feint steal`)
+- [x] Docs site, static dashboard, Docker image and tagged releases
 - [ ] Problem-space validation: replay perturbed flows in a lab network and re-extract with CICFlowMeter
 - [ ] Coupled constraints (packets -> duration, connection rate -> `ct_*`) and attack-semantics constraints
 - [ ] Certified / randomised-smoothing baseline for tabular features
 - [ ] Stronger poisoning defences (spectral signatures, trigger-value audits) and clean-label poisoning
-- [ ] CIC-IDS2018 and CICIoT2023 schemas; small web dashboard over the JSON reports
+- [ ] CIC-IDS2018 and CICIoT2023 schemas; adversarial training in the multi-seed study
 
 ## Safety and ethics
 

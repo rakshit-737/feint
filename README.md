@@ -2,6 +2,7 @@
 
 [![ci](https://github.com/rakshit-737/feint/actions/workflows/ci.yml/badge.svg)](https://github.com/rakshit-737/feint/actions/workflows/ci.yml)
 ![python](https://img.shields.io/badge/python-3.10%2B-blue)
+[![docs](https://img.shields.io/badge/docs-github%20pages-blue)](https://rakshit-737.github.io/feint/)
 [![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 ![data](https://img.shields.io/badge/data-CIC--IDS2017%20%7C%20UNSW--NB15-orange)
 
@@ -17,6 +18,8 @@ precision** instead of a single accuracy number.
 > a realisable attack, and 0 % on UNSW-NB15**. Adversarial training brings that back to 80-96 %,
 > and a model restricted to attacker-immutable features is untouched by the attack at a
 > 2.2-point FPR cost.
+
+**Docs:** https://rakshit-737.github.io/feint/ · **Dashboard:** https://rakshit-737.github.io/feint/demo/
 
 ## Contents
 
@@ -156,7 +159,7 @@ never committed; `tests/fixtures/` holds ~930 sampled rows for CI.
 ```bash
 git clone https://github.com/rakshit-737/feint && cd feint
 pip install -e ".[dev]"                 # numpy, pandas, scikit-learn, xgboost (+ matplotlib, fastapi for dev)
-python -m pytest -q                     # 24 tests; real-data tests skip without datasets
+python -m pytest -q                     # 27 tests; real-data tests skip without datasets
 python -m feint run --quick --n 3000 --out results/demo   # 1-minute synthetic smoke study
 ```
 
@@ -223,6 +226,60 @@ against secondary sources only, as the paper itself is paywalled.
 |---|---|
 | ![SHAP](results/cicids2017/shap_importance.png) | ![drift](results/cicids2017/drift_recall.png) |
 
+## Seed variance and model stealing (v1.0.0)
+
+### Multi-seed robustness: cicids2017
+
+Seeds [0, 1, 2] (n=3); mean with 95 % Student-t CI across seeds. Constrained adaptive attack, detection rate on held-out attack flows (higher is better).
+
+| model | clean F1 | FPR | eps=0.0 | eps=0.5 | eps=1.0 | eps=2.0 |
+|---|---|---|---|---|---|---|
+| mlp | 0.986 [0.984, 0.987] | 0.007 [0.006, 0.007] | 0.991 [0.989, 0.992] | 0.507 [0.357, 0.657] | 0.329 [0.247, 0.411] | 0.100 [0.000, 0.202] |
+| random_forest | 0.992 [0.992, 0.993] | 0.004 [0.003, 0.004] | 0.995 [0.993, 0.996] | 0.466 [0.375, 0.557] | 0.418 [0.389, 0.448] | 0.390 [0.364, 0.416] |
+| xgboost | 0.994 [0.992, 0.995] | 0.004 [0.003, 0.005] | 0.998 [0.997, 1.000] | 0.470 [0.387, 0.554] | 0.435 [0.400, 0.470] | 0.405 [0.379, 0.431] |
+| ensemble | 0.979 [0.976, 0.981] | 0.014 [0.012, 0.016] | 0.997 [0.995, 0.999] | 0.545 [0.432, 0.658] | 0.476 [0.445, 0.508] | 0.422 [0.340, 0.503] |
+| xgboost_robust_features | 0.960 [0.954, 0.965] | 0.026 [0.024, 0.028] | 0.992 [0.984, 1.000] | 0.992 [0.984, 1.000] | 0.992 [0.984, 1.000] | 0.992 [0.984, 1.000] |
+
+Per-seed binomial (Wilson) 95 % interval half-width at n=1000 evaluated flows is at most 0.031.
+
+
+### Multi-seed robustness: unsw_nb15
+
+Seeds [0, 1, 2] (n=3); mean with 95 % Student-t CI across seeds. Constrained adaptive attack, detection rate on held-out attack flows (higher is better).
+
+| model | clean F1 | FPR | eps=0.0 | eps=0.5 | eps=1.0 | eps=2.0 |
+|---|---|---|---|---|---|---|
+| mlp | 0.880 [0.873, 0.888] | 0.283 [0.255, 0.311] | 0.970 [0.962, 0.979] | 0.421 [0.360, 0.482] | 0.187 [0.132, 0.243] | 0.070 [0.044, 0.096] |
+| random_forest | 0.888 [0.887, 0.889] | 0.266 [0.262, 0.269] | 0.972 [0.953, 0.991] | 0.689 [0.557, 0.821] | 0.147 [0.101, 0.193] | 0.000 [0.000, 0.002] |
+| xgboost | 0.888 [0.887, 0.889] | 0.261 [0.257, 0.264] | 0.968 [0.953, 0.983] | 0.179 [0.149, 0.208] | 0.138 [0.110, 0.166] | 0.001 [0.000, 0.002] |
+| ensemble | 0.881 [0.877, 0.885] | 0.286 [0.272, 0.301] | 0.973 [0.959, 0.986] | 0.580 [0.337, 0.824] | 0.462 [0.345, 0.579] | 0.375 [0.224, 0.527] |
+| xgboost_robust_features | 0.850 [0.848, 0.852] | 0.334 [0.329, 0.339] | 0.942 [0.918, 0.966] | 0.942 [0.918, 0.966] | 0.942 [0.918, 0.966] | 0.942 [0.918, 0.966] |
+
+Per-seed binomial (Wilson) 95 % interval half-width at n=1000 evaluated flows is at most 0.031.
+
+
+Across three seeds the undefended models' constrained detection varies by up to ±0.24 (UNSW ensemble at
+eps=0.5), far more than the ±0.03 binomial error of a single run: single-seed robustness numbers
+(including the headline table above, seed 0) should be read with that spread in mind. The ordering
+holds: robust-feature XGBoost > ensemble > single models at eps=2 on both datasets; on CIC-IDS2017 the
+ensemble's advantage over XGBoost at eps>=1 is within the seed CI.
+
+### Model stealing (label-only queries -> transfer attack)
+
+Victim: xgboost; 1000 held-out attack flows; transfer = constrained PGD on the surrogate, no score queries to the victim. Victim detection rate (higher is better for the defender).
+
+| surrogate | test agreement | eps=0.0 | eps=0.5 | eps=1.0 | eps=2.0 |
+|---|---|---|---|---|---|
+| true labels, full training set | 0.937 | 0.965 | 0.544 | 0.400 | 0.245 |
+| stolen, 500 label queries | 0.785 | 0.965 | 0.568 | 0.329 | 0.178 |
+| stolen, 2000 label queries | 0.914 | 0.965 | 0.435 | 0.360 | 0.001 |
+| stolen, 10000 label queries | 0.918 | 0.965 | 0.514 | 0.422 | 0.001 |
+
+A label-only API leaks enough: with 2,000 hard-label queries the stolen MLP agrees with the victim on
+91 % of test flows, and pure transfer from it (no score queries) drives XGBoost detection to 0.001 at
+eps=2, *stronger* than transfer from an MLP trained on the true labels (0.245), because the stolen copy
+imitates the victim's decision boundary rather than the ground truth. Single seed.
+
 ## Prior art and how FEINT differs
 
 | work | what it does | FEINT's difference |
@@ -256,18 +313,23 @@ against the *defended* system, monotone curves, fixed-prevalence precision, and 
   `sttl` / `swin` separate classes because of the testbed; both inflate clean scores. FEINT surfaces
   them (SHAP, single-feature attacks) rather than fixing them.
 - **Sampling.** CIC results use a de-duplicated 10 % per-class sample (253 k flows) for CPU
-  budget; UNSW uses the full official split. One seed; no confidence intervals yet.
-- **Not implemented from the spec:** self-captured lab pcaps via CICFlowMeter, React dashboard
-  (replaced by generated PNG/Markdown reports and a JSON API), model-stealing experiments.
+  budget; UNSW uses the full official split. The full study (incl. adversarial training, poisoning,
+  counterfactuals) is single-seed; the multi-seed CI study covers clean metrics and constrained curves
+  of the undefended and robust-feature models only (adversarial training x3 seeds is ~1.5 h per dataset).
+- **Not implemented from the spec:** self-captured lab pcaps via CICFlowMeter (needs an isolated lab
+  network and traffic generation; not feasible on this machine). The React dashboard is replaced by a
+  static JavaScript dashboard over the committed JSON reports ([demo](https://rakshit-737.github.io/feint/demo/)).
 
 ## Roadmap
 
-- [ ] Multiple seeds with confidence intervals; bootstrap the robustness curves
+- [x] Multiple seeds with confidence intervals (`feint seeds`)
+- [x] Model-stealing experiment (`feint steal`)
+- [x] Docs site, static dashboard, Docker image and tagged releases
 - [ ] Problem-space validation: replay perturbed flows in a lab network and re-extract with CICFlowMeter
 - [ ] Coupled constraints (packets -> duration, connection rate -> `ct_*`) and attack-semantics constraints
 - [ ] Certified / randomised-smoothing baseline for tabular features
 - [ ] Stronger poisoning defences (spectral signatures, trigger-value audits) and clean-label poisoning
-- [ ] CIC-IDS2018 and CICIoT2023 schemas; small web dashboard over the JSON reports
+- [ ] CIC-IDS2018 and CICIoT2023 schemas; adversarial training in the multi-seed study
 
 ## Repository layout
 
