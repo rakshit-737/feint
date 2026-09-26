@@ -1,5 +1,15 @@
 __pycache__/
 *.egg-info/
 .pytest_cache/
+.ruff_cache/
 build/
+dist/
+.venv/
+# datasets are downloaded by scripts/download_*.py and never committed
+data/
+*.zip
+*.part
 *.csv
+!tests/fixtures/*.csv
+# trained model bundles are large and reproducible
+*.joblib
