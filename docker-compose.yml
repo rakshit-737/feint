@@ -1,0 +1,10 @@
+# Scoring API over a trained bundle. Create it first:
+#   python -m feint run --data unsw_nb15 --out results/unsw_nb15 --save-model
+services:
+  api:
+    build: .
+    image: ghcr.io/rakshit-737/feint:latest
+    command: ["serve", "--model", "/models/model.joblib", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["127.0.0.1:8000:8000"]
+    volumes: ["./results/unsw_nb15:/models:ro"]
+    read_only: true

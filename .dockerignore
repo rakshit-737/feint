@@ -1,0 +1,8 @@
+.git
+data
+results
+site
+docs
+tests
+**/__pycache__
+*.joblib
