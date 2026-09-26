@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FEINT results dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<style>
+  :root { --bg:#fafafa; --fg:#1d1d1f; --muted:#666; --card:#fff; --line:#ddd; --accent:#3f51b5; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#121212; --fg:#eee; --muted:#aaa; --card:#1e1e1e; --line:#333; --accent:#8c9eff; } }
+  body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--fg); }
+  main { max-width:1100px; margin:0 auto; padding:16px; }
+  h1 { font-size:1.5rem; margin:.5rem 0; } h2 { font-size:1.1rem; margin:1.5rem 0 .5rem; }
+  .muted { color:var(--muted); } a { color:var(--accent); }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:8px; padding:12px; margin:12px 0; overflow-x:auto; }
+  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center; }
+  select, label { font:inherit; }
+  table { border-collapse:collapse; width:100%; font-size:.9rem; }
+  th, td { border-bottom:1px solid var(--line); padding:4px 8px; text-align:right; white-space:nowrap; }
+  th:first-child, td:first-child { text-align:left; }
+  .chart { position:relative; height:360px; }
+</style>
+</head>
+<body>
+<main>
+  <h1>FEINT results dashboard</h1>
+  <p class="muted">Static view over the committed <code>report.json</code> files produced by
+    <code>python -m feint run</code>. <a href="../">Back to the docs</a>.</p>
+  <div class="row">
+    <label>Dataset <select id="ds">
+      <option value="cicids2017">CIC-IDS2017</option>
+      <option value="unsw_nb15">UNSW-NB15</option>
+    </select></label>
+    <label><input type="checkbox" id="unc"> show unconstrained attacks</label>
+  </div>
+  <h2>Detection rate vs. attack budget (constrained adaptive evasion)</h2>
+  <div class="card"><div class="chart"><canvas id="curve"></canvas></div></div>
+  <h2>Clean metrics</h2>
+  <div class="card"><table id="clean"></table></div>
+  <h2>Per-family detection, undefended XGBoost at the largest budget</h2>
+  <div class="card"><table id="fam"></table></div>
+  <h2>Multi-seed confidence intervals</h2>
+  <div class="card"><table id="seeds"></table></div>
+</main>
+<script>
+const cache = {};
+let chart;
+async function get(name) {
+  if (!(name in cache)) {
+    try { const r = await fetch("data/" + name); cache[name] = r.ok ? await r.json() : null; }
+    catch (e) { cache[name] = null; }
+  }
+  return cache[name];
+}
+const f3 = v => (v == null || Number.isNaN(v)) ? "–" : Number(v).toFixed(3);
+function table(el, head, rows) {
+  el.innerHTML = "<tr>" + head.map(h => `<th>${h}</th>`).join("") + "</tr>" +
+    rows.map(r => "<tr>" + r.map(c => `<td>${c}</td>`).join("") + "</tr>").join("");
+}
+async function render() {
+  const ds = document.getElementById("ds").value, unc = document.getElementById("unc").checked;
+  const r = await get(ds + "_report.json");
+  if (!r) { document.getElementById("clean").textContent = "report not found"; return; }
+  const sets = [];
+  for (const [name, v] of Object.entries(r.robustness)) {
+    sets.push({ label: name, data: v.constrained.map(p => ({ x: p.eps, y: p.detection_rate })) });
+    if (unc && v.unconstrained)
+      sets.push({ label: name + " (unconstrained)", borderDash: [5, 4],
+                  data: v.unconstrained.map(p => ({ x: p.eps, y: p.detection_rate })) });
+  }
+  if (chart) chart.destroy();
+  chart = new Chart(document.getElementById("curve"), {
+    type: "line", data: { datasets: sets },
+    options: { maintainAspectRatio: false, parsing: false,
+      scales: { x: { type: "linear", title: { display: true, text: "eps (L-inf, standardised log space)" } },
+                y: { min: 0, max: 1, title: { display: true, text: "detection rate" } } } }
+  });
+  table(document.getElementById("clean"), ["model", "accuracy", "F1", "FPR", "PR-AUC", "precision @0.1 %"],
+    Object.entries(r.models).map(([n, m]) => [n, f3(m.accuracy), f3(m.f1), f3(m.fpr), f3(m.pr_auc), f3(m["precision_at_0.001"])]));
+  table(document.getElementById("fam"), ["family", "n", "clean", "attacked"],
+    Object.entries(r.per_family || {}).map(([n, v]) => [n, v.n, f3(v.clean_detection), f3(v.adv_detection)]));
+  const s = await get(ds + "_seeds.json"), st = document.getElementById("seeds");
+  if (!s) { st.innerHTML = "<tr><td>no multi-seed run committed for this dataset</td></tr>"; return; }
+  const eps = Object.keys(Object.values(s.aggregate)[0].detection);
+  const ci = c => `${f3(c.mean)} [${f3(c.ci95[0])}, ${f3(c.ci95[1])}]`;
+  table(st, ["model", "F1", ...eps.map(e => "eps=" + e)],
+    Object.entries(s.aggregate).map(([n, a]) => [n, ci(a.f1), ...eps.map(e => ci(a.detection[e]))]));
+}
+document.getElementById("ds").onchange = render;
+document.getElementById("unc").onchange = render;
+render();
+</script>
+</body>
+</html>

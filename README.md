@@ -90,33 +90,33 @@ flows, which is why the ensemble ORs it in (at 3.2 % FPR instead of 0.04 %).
 ```mermaid
 flowchart LR
   subgraph Data
-    CIC[CIC-IDS2017 MachineLearningCVE] --> L[loaders + dedup + sampling]
-    UNSW[UNSW-NB15 official split] --> L
-    L --> S[(Schema: controllable / fixed / derived / relations)]
+    CIC["CIC-IDS2017 MachineLearningCVE"] --> L["loaders + dedup + sampling"]
+    UNSW["UNSW-NB15 official split"] --> L
+    L --> S[("Schema: controllable / fixed / derived / relations")]
   end
-  S --> P[log1p + standardise]
-  P --> ENS[Ensemble: XGBoost + MLP  OR  benign autoencoder]
-  P --> BL[Baselines: LogReg, RF, IsolationForest]
-  subgraph RedTeam[Red team]
-    PGD[white-box PGD] --> ADA[adaptive: transfer + black-box search]
-    RS[score-based random search] --> ADA
-    ADA -->|project every step| S
-    POI[backdoor poisoning, 2 %]
+  S --> P["log1p + standardise"]
+  P --> ENS["Ensemble: XGBoost + MLP  OR  benign autoencoder"]
+  P --> BL["Baselines: LogReg, RF, IsolationForest"]
+  subgraph RedTeam["Red team"]
+    PGD["white-box PGD"] --> ADA["adaptive: transfer + black-box search"]
+    RS["score-based random search"] --> ADA
+    ADA -->|"project every step"| S
+    POI["backdoor poisoning, 2 %"]
   end
   ENS --> ADA
   subgraph Harden
-    AT[adversarial training]
-    RF2[robust-feature model]
-    AID[adversarial-input alarm]
-    SAN[robust-feature kNN sanitiser]
+    AT["adversarial training"]
+    RF2["robust-feature model"]
+    AID["adversarial-input alarm"]
+    SAN["robust-feature kNN sanitiser"]
   end
-  ADA --> AT --> ENS2[hardened ensemble]
+  ADA --> AT --> ENS2["hardened ensemble"]
   POI --> SAN
-  ENS --> X[TreeSHAP + constraint-valid counterfactuals]
-  ENS2 --> EV[robustness curves, per-family, base-rate precision, drift]
+  ENS --> X["TreeSHAP + constraint-valid counterfactuals"]
+  ENS2 --> EV["robustness curves, per-family, base-rate precision, drift"]
   AID --> EV
-  EV --> R[report.md / report.json / PNG]
-  ENS2 --> API[FastAPI: /score with explanations]
+  EV --> R["report.md / report.json / PNG"]
+  ENS2 --> API["FastAPI: /score with explanations"]
 ```
 
 | stage | what FEINT does | code |

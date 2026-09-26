@@ -1,0 +1,54 @@
+site_name: FEINT
+site_description: Adversarially-robust, explainable network intrusion detection
+site_url: https://rakshit-737.github.io/feint/
+repo_url: https://github.com/rakshit-737/feint
+repo_name: rakshit-737/feint
+edit_uri: ""
+theme:
+  name: material
+  features: [navigation.sections, content.code.copy]
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle: {icon: material/weather-night, name: Dark mode}
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle: {icon: material/weather-sunny, name: Light mode}
+markdown_extensions:
+  - admonition
+  - tables
+  - footnotes
+  - attr_list
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: false
+            show_root_heading: true
+            docstring_style: sphinx
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Architecture: architecture.md
+  - Datasets: datasets.md
+  - Benchmarks: benchmarks.md
+  - Results dashboard: demo/index.html
+  - CLI & API reference: reference.md
+  - Threat model: threat-model.md
+  - Security: security.md
+  - ADRs:
+      - adr/0001-feature-space-constraint-schemas.md
+      - adr/0002-perturbation-budget-in-log-space.md
+      - adr/0003-own-attack-engine-instead-of-art.md
+      - adr/0004-scikit-learn-networks-instead-of-pytorch.md
+      - adr/0005-native-treeshap-and-constrained-counterfactuals.md
+      - adr/0006-data-sources-sampling-and-splits.md
+  - Changelog: changelog.md
+  - Limitations & roadmap: limitations.md
