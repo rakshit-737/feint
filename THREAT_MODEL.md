@@ -1,30 +1,38 @@
 # FEINT Threat Model
 
-FEINT is a research pipeline. Its threat model describes the **adversary it simulates**, and separately the risks of **running FEINT itself**.
+FEINT is a research pipeline. This document describes the **adversary it simulates** and,
+separately, the risks of **running FEINT itself**.
 
-## 1. Modelled adversary (what the robustness study assumes)
+## 1. Modelled adversaries
 
 | Item | Assumption |
 | --- | --- |
-| Assets | The flow-based detector and its training data |
-| Knowledge | **White-box** (Kerckhoffs): attacker knows architecture, weights, preprocessing. Gradients are exact. |
-| Goal | Evasion: make a malicious flow be classified benign while still performing the attack |
-| Capability (constrained) | Can only *add* to its own direction of the flow: extra forward packets, padding bytes, delays (longer IAT / duration). Cannot change server replies (`bwd_pkts`, `bwd_bytes`) or protocol-bound counts (`syn_count`). Packet counts integer; bytes per packet in [40, 1500]; derived features are recomputed, never set. |
-| Capability (unconstrained) | Reference only: any feature perturbed within an L-inf budget in standardised log-space. Produces physically unrealisable flows; reported to show how much textbook evaluations overstate the attacker. |
-| Budget | `eps` = L-inf radius in standardised log-feature space (before projection). eps=1 is roughly "scale a controllable feature by e^(1 sigma)". |
+| Assets | The flow-based detector (ensemble) and its training data |
+| Knowledge | **White-box / Kerckhoffs**: architecture, weights, preprocessing and constraint model are known. Gradients are exact for the MLP; trees and the ensemble are attacked by transfer from a differentiable surrogate plus score-based black-box search (query access to `predict_proba`). |
+| Evasion goal | A malicious flow is classified benign while still being a realisable flow |
+| Evasion capability (constrained) | Defined per dataset in [`feint/schema.py`](feint/schema.py) and [ADR 0001](docs/adr/0001-feature-space-constraint-schemas.md): the attacker may only *increase* its own duration / packets / payload (integer counts, `bytes <= packets * MTU`, max packet length consistent with mean), may set its own TCP window (CIC, UNSW) and IP TTL (UNSW) to any valid integer, and cannot touch server replies, destination port, protocol-bound flags or host-context counters. Derived features are recomputed, never set. |
+| Evasion capability (unconstrained) | Reference only: every feature perturbed within an L-inf budget in standardised log space. Produces unrealisable flows (validity 0 %); reported to show how much textbook evaluations misstate the attacker. |
+| Budget | `eps` = L-inf radius in standardised log-feature space ([ADR 0002](docs/adr/0002-perturbation-budget-in-log-space.md)). |
+| Poisoning goal | Backdoor: attacker-supplied training flows (e.g. via a honeypot or a mislabelled capture) teach the model that a trigger value in an attacker-controllable feature means "benign". Budget: 2 % of the training set. |
+| Detector-aware attacker | For the adversarial-input alarm we also evaluate an attacker who optimises against `detector OR alarm`, not only the static case. |
 
-### Out of scope in the MVP (documented TODO)
-- Data poisoning / backdoors (Grade C/D: needs poisoning study design).
-- Model stealing / black-box query attacks.
-- Problem-space attacks (actually rewriting pcaps and re-running CICFlowMeter) — the constraints approximate this in feature space only; semantic validity beyond the rules above is Grade D research.
-- Adaptive attacks against the IsolationForest backstop (it is non-differentiable; the current result that it catches evasions is **not** a robustness claim).
+### Out of scope / known gaps
+- **Problem-space attacks** (rewriting pcaps and re-running CICFlowMeter). Constraints approximate
+  this in feature space; cross-feature side effects (e.g. more packets also lengthen duration,
+  more connections change `ct_*` counters) are not modelled, and the attack's own purpose (a DoS
+  needs its volume) is not enforced. Both simplifications favour the attacker.
+- **Model stealing**: the attacker is assumed to already have the model (strictly stronger).
+- **Certified robustness**: all robustness numbers are empirical upper bounds from our attacks.
+- **Clean-label poisoning** and poisoning of the unsupervised member are not studied.
 
 ## 2. Risks of running FEINT
 
 | Risk | Mitigation |
 | --- | --- |
-| Loading an untrusted CSV | Parsed with `csv` + `float()` only; no pickle/eval; bad rows skipped. |
-| Misuse as an evasion tool | Attacks operate on feature vectors against a model you train locally; no traffic is generated or sent. |
-| Overclaiming robustness | Reports curves across budgets, constrained and unconstrained, plus precision at 0.1% prevalence. Synthetic-data numbers are illustrative only. |
+| Loading an untrusted CSV | Parsed with pandas into numeric arrays only; non-numeric / non-finite values dropped; no pickle or eval on inputs. |
+| Loading a model bundle (`feint serve --model`) | Bundles are joblib pickles: **only load bundles you produced yourself**. |
+| Misuse as an evasion tool | Attacks operate on feature vectors against models trained locally on public datasets; no traffic is generated or sent, no exploit code, no malware. |
+| Overclaiming robustness | Curves across budgets, constrained and unconstrained, adaptive attacks against the defended system, precision at 1 % and 0.1 % prevalence, and explicit limitations in the README. |
+| API exposure | `feint serve` binds to 127.0.0.1 by default and has no authentication; it is a lab demo, not a production service. |
 
-All data is synthetic or user-supplied public datasets. No live network interaction.
+All data is public (CIC-IDS2017, UNSW-NB15) or synthetic. No live network interaction.
