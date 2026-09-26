@@ -139,23 +139,30 @@ def write_figures(r: dict, out: Path) -> list[Path]:
     paths = []
     rob = r["robustness"]
 
-    fig, axes = plt.subplots(1, 2, figsize=(11, 4.2), sharey=True)
+    colors = {"mlp": "#1f77b4", "xgboost": "#ff7f0e", "random_forest": "#8c564b", "ensemble": "#2ca02c",
+              "mlp_adv_trained": "#1f77b4", "xgboost_adv_trained": "#ff7f0e",
+              "ensemble_adv_trained": "#2ca02c", "xgboost_robust_features": "#7f7f7f"}
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.8), sharey=True)
+    handles = {}
     for ax, kind in zip(axes, ("constrained", "unconstrained")):
         for n, v in rob.items():
             if kind not in v:
                 continue
             e = [p["eps"] for p in v[kind]]
             d = [p["detection_rate"] for p in v[kind]]
-            ls = "--" if "adv" in n or "robust" in n else "-"
-            ax.plot(e, d, ls, marker="o", ms=3, label=_p(n))
-        ax.set_title(f"{kind} evasion")
-        ax.set_xlabel("budget eps (z-space L-inf)")
+            ls = ":" if "robust" in n else "--" if "adv" in n else "-"
+            (h,) = ax.plot(e, d, ls, marker="o", ms=3, lw=1.8, color=colors.get(n), label=_p(n))
+            handles.setdefault(n, h)
+        ax.set_title(f"{kind} adaptive evasion")
+        ax.set_xlabel("budget eps (L-inf, standardised log space)")
         ax.grid(alpha=0.3)
     axes[0].set_ylabel("detection rate on attack flows")
     axes[0].set_ylim(-0.02, 1.02)
-    axes[1].legend(fontsize=7, loc="lower left")
-    fig.suptitle(f"FEINT robustness curves: {r['dataset'].get('name')}")
-    fig.tight_layout()
+    fig.legend(list(handles.values()), [_p(n) for n in handles], loc="lower center", ncol=4, fontsize=8,
+               frameon=False)
+    fig.suptitle(f"FEINT robustness curves: {r['dataset'].get('name')} (solid = undefended, dashed = "
+                 "adversarially trained, dotted = robust features)", fontsize=10)
+    fig.tight_layout(rect=(0, 0.1, 1, 1))
     p = out / "robustness_curves.png"
     fig.savefig(p, dpi=110)
     plt.close(fig)
