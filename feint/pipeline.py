@@ -263,6 +263,16 @@ def run_study(ds: Dataset | None = None, cfg: StudyConfig | None = None, return_
             if ev_.any():
                 res[f"eps_{e}"] = aid.evaluate(np.vstack([ben_te, X_mal]), Xa[ev_])
                 res[f"eps_{e}"]["n_evasions"] = int(ev_.sum())
+        # adaptive attacker who knows about the adversarial-input detector too
+        g = aid.guarded()
+        Xg = adaptive(g, X_mal, schema, eps=cfg.eps[-1], surrogate=mlp, steps=cfg.steps,
+                      iters=cfg.iters, seed=cfg.seed)
+        res["adaptive_vs_guarded"] = {
+            "eps": float(cfg.eps[-1]),
+            "detection_rate": float((g.predict(Xg) == 1).mean()),
+            "evade_target_only": float((xgb.predict(Xg) == 0).mean()),
+            "guarded_fpr_benign": float((g.predict(ben_te) == 1).mean()),
+        }
         report["adversarial_input_detector"] = res
 
     # ------------------------------------------------------------------ 7. poisoning

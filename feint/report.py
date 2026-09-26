@@ -87,6 +87,12 @@ def to_markdown(r: dict) -> str:
         for k, v in a.items():
             if k.startswith("eps_"):
                 L.append(f"| {k[4:]} | {v['n_evasions']} | {v['auc']:.3f} | {v['tpr']:.3f} | {v['fpr']:.3f} |")
+        if "adaptive_vs_guarded" in a:
+            g = a["adaptive_vs_guarded"]
+            L += ["", f"Detector-aware adaptive attacker (eps={g['eps']:g}) against XGBoost OR adv-input alarm: "
+                  f"detection {g['detection_rate']:.3f} (XGBoost alone would miss {g['evade_target_only']:.3f} of "
+                  f"these flows); guarded FPR on benign {g['guarded_fpr_benign']:.4f}. The static AUC above "
+                  "is therefore optimistic: it only holds against attackers unaware of the alarm."]
 
     if "poisoning" in r:
         p = r["poisoning"]

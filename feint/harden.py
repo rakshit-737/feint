@@ -69,6 +69,29 @@ class AdversarialInputDetector:
     def score(self, X):
         return self.clf.predict_proba(self._feat(X))[:, 1]
 
+    def score_z(self, Z):
+        F = np.column_stack([Z, self.target.predict_proba_z(Z)])
+        return self.clf.predict_proba(F)[:, 1]
+
+    def guarded(self):
+        """Deployed system = target OR adversarial-input alarm, as one attackable detector."""
+        from .model import BaseDetector
+
+        aid = self
+
+        class Guarded(BaseDetector):
+            name = "guarded"
+
+            def __init__(self):
+                super().__init__()
+                self.pre = aid.target.pre
+
+            def predict_proba_z(self, Z):
+                a = aid.score_z(Z)
+                return np.maximum(aid.target.predict_proba_z(Z), 0.5 * a / max(aid.thr, 1e-9))
+
+        return Guarded()
+
     def evaluate(self, X_clean, X_adv):
         s = np.r_[self.score(X_clean), self.score(X_adv)]
         lab = np.r_[np.zeros(len(X_clean)), np.ones(len(X_adv))]
