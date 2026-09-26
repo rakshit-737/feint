@@ -1,103 +1,281 @@
 # FEINT
 
-**A network intrusion detector built to be attacked.** FEINT trains a flow-based NIDS, red-teams it with white-box evasion under *realistic network constraints*, hardens it with adversarial training, and reports a **robustness curve** plus base-rate-honest precision instead of a single accuracy number.
+[![ci](https://github.com/rakshit-737/feint/actions/workflows/ci.yml/badge.svg)](https://github.com/rakshit-737/feint/actions/workflows/ci.yml)
+![python](https://img.shields.io/badge/python-3.10%2B-blue)
+[![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
+![data](https://img.shields.io/badge/data-CIC--IDS2017%20%7C%20UNSW--NB15-orange)
 
-Everyone reports 99% accuracy on CIC-IDS. FEINT asks what is left of that number when the attacker knows the model and pads, delays or adds packets to their own traffic to slip past it.
+**A network intrusion detector built to be attacked.** FEINT trains a flow-based NIDS ensemble on
+CIC-IDS2017 and UNSW-NB15, red-teams it with *adaptive* evasion that respects what a network
+attacker can actually change, poisons its training data, hardens it, explains every alert with
+SHAP and constraint-valid counterfactuals, and reports **robustness curves and base-rate-honest
+precision** instead of a single accuracy number.
 
-## Architecture
+> Everyone reports 99 % accuracy on CIC-IDS2017. FEINT asks what is left of that number when the
+> attacker knows the model and pads, delays or adds packets to its own traffic.
+> Short answer: **XGBoost at 99.7 % clean accuracy still detects only 42 % of attack flows under
+> a realisable attack, and 0 % on UNSW-NB15**. Adversarial training brings that back to 80-96 %,
+> and a model restricted to attacker-immutable features is untouched by the attack at a
+> 2.2-point FPR cost.
+
+## Contents
+
+[Headline results](#headline-results) · [How it works](#how-it-works) · [Datasets](#datasets) ·
+[Quickstart](#quickstart) · [Reproducing the benchmarks](#reproducing-the-benchmarks) ·
+[Full results](#full-results) · [Prior art](#prior-art-and-how-feint-differs) ·
+[Limitations](#limitations) · [Roadmap](#roadmap) · [Safety](#safety-and-ethics)
+
+## Headline results
+
+All numbers come from `results/<dataset>/report.json`, produced by the committed code (seed 0,
+CPU only). Attack budgets `eps` are L-inf radii in standardised log-feature space
+([ADR 0002](docs/adr/0002-perturbation-budget-in-log-space.md)); detection rates are measured on
+1,000 held-out attack flows; every constrained adversarial flow passed the schema validity check
+(100 %).
+
+**Detection rate under constrained, adaptive evasion (higher is better)**
+
+| model | CIC-IDS2017 eps=0 | eps=0.5 | eps=1 | eps=2 | UNSW-NB15 eps=0 | eps=0.5 | eps=1 | eps=2 |
+|---|---|---|---|---|---|---|---|---|
+| MLP | 0.991 | 0.576 | 0.349 | 0.123 | 0.967 | 0.398 | 0.173 | 0.056 |
+| Random forest (baseline) | 0.995 | 0.507 | 0.435 | 0.397 | 0.968 | 0.623 | 0.163 | 0.000 |
+| XGBoost | 0.999 | 0.498 | 0.451 | 0.417 | 0.965 | 0.178 | 0.146 | 0.000 |
+| FEINT ensemble (XGB + MLP, OR autoencoder) | 0.998 | 0.590 | 0.491 | 0.400 | 0.969 | 0.501 | 0.416 | 0.255 |
+| MLP + adversarial training | 0.991 | 0.857 | 0.779 | 0.732 | 0.957 | 0.925 | 0.907 | 0.865 |
+| XGBoost + adversarial training | 1.000 | 0.806 | 0.805 | 0.803 | 0.967 | 0.963 | 0.962 | 0.954 |
+| **FEINT ensemble + adversarial training** | 0.998 | **0.860** | **0.840** | **0.830** | 0.969 | **0.966** | **0.965** | **0.963** |
+| XGBoost, robust features only | 0.994 | 0.994 | 0.994 | 0.994 | 0.940 | 0.940 | 0.940 | 0.940 |
+
+![CIC-IDS2017 robustness curves](results/cicids2017/robustness_curves.png)
+
+What the numbers say:
+
+1. **The collapse is real, and unconstrained attacks overstate it.** Textbook (unconstrained)
+   attacks drive every undefended model to 0.000-0.032 detection on CIC-IDS2017 at eps=0.5, but
+   produce 0 % realisable flows. Under the realistic constraints the undefended XGBoost keeps 42 %,
+   almost entirely volume attacks (DoS Hulk 94 %, GoldenEye 64 %, DDoS 57 %) whose server-side
+   features the attacker cannot touch; PortScan, slowloris, Slowhttptest, FTP/SSH-Patator, Bot and
+   web attacks all go to 0 %.
+2. **The most important feature is attacker-controlled.** TreeSHAP ranks `init_win_fwd` (client TCP
+   window) first on CIC-IDS2017 and `sttl` (source IP TTL, a known UNSW-NB15 testbed artefact) first
+   on UNSW-NB15. Controlling *only* `sttl` drops UNSW XGBoost detection to 0.2 %; controlling only
+   `init_win_fwd` drops CIC detection to 48 %.
+3. **Hardening works at little clean cost.** Adversarial training keeps clean F1 within 0.001
+   (CIC XGBoost 0.9942 -> 0.9932) and restores constrained detection to 80-96 %. Restricting the
+   model to attacker-immutable features makes it immune to this attacker by construction, for a
+   clean FPR of 2.6 % instead of 0.35 % on CIC.
+4. **Base rates matter more than the leaderboard.** XGBoost's 99.7 % accuracy and 0.35 % FPR mean
+   only **22 % of its alerts are real at a 0.1 % attack prevalence**; on UNSW-NB15 (26 % FPR on the
+   official test split) that falls to 0.4 %.
+
+| study | CIC-IDS2017 | UNSW-NB15 |
+|---|---|---|
+| Counterfactuals: XGBoost alerts with a realisable evasion within eps=2 | 59.5 % (1.71 features changed, median eps 0.031) | 98.5 % (2.16 features) |
+| ...same, against the adversarially-trained ensemble | 6.0 % | 0.5 % |
+| Adversarial-input alarm, static attacker (ROC-AUC / FPR) | 1.000 / 0.9 % | 1.000 / 1.3 % |
+| ...detector-aware adaptive attacker vs. XGBoost OR alarm (detection at eps=2) | 0.880 (XGBoost alone: 0.417) | 0.998 (XGBoost alone: 0.000) |
+| Backdoor, 2 % poisoned training flows: success rate clean -> poisoned -> sanitised | 0.33 -> **1.00** -> 0.52 | 0.04 -> **1.00** -> 0.76 |
+| Poison recall / precision of robust-feature kNN sanitiser | 0.81 / 0.71 | 0.93 / 0.38 |
+
+**Drift (CIC-IDS2017, train Monday-Wednesday, test Thursday-Friday).** Supervised models do not
+generalise to unseen attack families: XGBoost recall is 0.6 % on PortScan, 0 % on Bot, 1.4 % on web
+brute force, 0 % on Infiltration. The benign-trained autoencoder catches 81 % of Infiltration
+flows, which is why the ensemble ORs it in (at 3.2 % FPR instead of 0.04 %).
+
+## How it works
 
 ```mermaid
 flowchart LR
-  S[Synthetic flow generator] --> D[Dataset]
-  C[CIC-IDS2017 CSV loader, optional] --> D
-  D --> P[log1p + standardise]
-  P --> M[MLP detector, analytic input gradients]
-  P --> I[IsolationForest on benign only]
-  M --> A[PGD evasion]
-  A -->|constrained| K[Projection: controllable features only, increase-only, integer pkts, 40-1500 B/pkt, recompute derived]
-  K --> A
-  A --> H[Adversarial training]
-  H --> M2[Hardened MLP]
-  M & M2 --> E[Robustness curves, ASR, validity, precision at 0.1% prevalence]
-  I --> E
-  E --> R[report.md / report.json]
+  subgraph Data
+    CIC[CIC-IDS2017 MachineLearningCVE] --> L[loaders + dedup + sampling]
+    UNSW[UNSW-NB15 official split] --> L
+    L --> S[(Schema: controllable / fixed / derived / relations)]
+  end
+  S --> P[log1p + standardise]
+  P --> ENS[Ensemble: XGBoost + MLP  OR  benign autoencoder]
+  P --> BL[Baselines: LogReg, RF, IsolationForest]
+  subgraph RedTeam[Red team]
+    PGD[white-box PGD] --> ADA[adaptive: transfer + black-box search]
+    RS[score-based random search] --> ADA
+    ADA -->|project every step| S
+    POI[backdoor poisoning, 2 %]
+  end
+  ENS --> ADA
+  subgraph Harden
+    AT[adversarial training]
+    RF2[robust-feature model]
+    AID[adversarial-input alarm]
+    SAN[robust-feature kNN sanitiser]
+  end
+  ADA --> AT --> ENS2[hardened ensemble]
+  POI --> SAN
+  ENS --> X[TreeSHAP + constraint-valid counterfactuals]
+  ENS2 --> EV[robustness curves, per-family, base-rate precision, drift]
+  AID --> EV
+  EV --> R[report.md / report.json / PNG]
+  ENS2 --> API[FastAPI: /score with explanations]
 ```
 
-| Module | File |
-| --- | --- |
-| Flow schema, synthetic generator, CIC-IDS loader | `feint/data.py` |
-| Detector (MLP + exact input gradient), IsolationForest member | `feint/model.py` |
-| PGD (constrained / unconstrained), constraint projection, validity checker | `feint/attack.py` |
-| Adversarial training | `feint/harden.py` |
-| Metrics, robustness curve, base-rate precision | `feint/metrics.py` |
-| End-to-end study + Markdown report | `feint/pipeline.py` |
-| CLI | `feint/cli.py` |
+| stage | what FEINT does | code |
+|---|---|---|
+| Constraints | Per-dataset schema: `up` (only increase: duration, packets, payload), `free` (TCP window, TTL), integer, fixed (server side, dst port, context), derived (recomputed); relations `bytes <= pkts*MTU`, `mean <= max_len <= min(bytes, MTU)`. `project()` + `is_valid()`. | [`schema.py`](feint/schema.py), [ADR 0001](docs/adr/0001-feature-space-constraint-schemas.md) |
+| Detect | XGBoost, MLP (analytic input gradients), benign-trained autoencoder, ensemble = `max(mean(XGB, MLP), AE)`; LogReg / RF / IsolationForest baselines | [`model.py`](feint/model.py) |
+| Evade | White-box PGD; multi-scale score-based random search; *adaptive* = PGD on target or surrogate, refined black-box, best per flow; curves are monotone (best over all budgets up to eps) | [`attack.py`](feint/attack.py), [ADR 0003](docs/adr/0003-own-attack-engine-instead-of-art.md) |
+| Poison | Copies of attack flows with a trigger in an attacker-controllable feature, labelled benign; sanitiser flags benign-labelled points whose neighbours in *robust-feature space* are malicious | [`poison.py`](feint/poison.py) |
+| Harden | Adversarial training (any model, any attack), robust-feature model, adversarial-input alarm evaluated against a detector-aware attacker | [`harden.py`](feint/harden.py) |
+| Explain | Exact TreeSHAP via XGBoost; counterfactual = minimal-budget constrained evasion (bisection) + greedy sparsification, reported in raw units | [`explain.py`](feint/explain.py), [ADR 0005](docs/adr/0005-native-treeshap-and-constrained-counterfactuals.md) |
+| Report | Clean metrics, PR-AUC, precision at 1 % / 0.1 % prevalence, curves, per-family, feature exploitability, drift | [`metrics.py`](feint/metrics.py), [`pipeline.py`](feint/pipeline.py), [`report.py`](feint/report.py) |
+| Serve | `feint serve`: `/score` returns verdict, top SHAP features and a counterfactual per flow | [`api.py`](feint/api.py) |
+
+Example counterfactuals produced for real CIC-IDS2017 alerts:
+
+```
+flip to benign by: init_win_fwd 1024 -> 901
+flip to benign by: fwd_pkts 9 -> 10; init_win_fwd 29200 -> 30150
+no realisable evasion within budget: this alert is robust to the modelled attacker
+```
+
+## Datasets
+
+| dataset | what we use | size | licence / terms | citation |
+|---|---|---|---|---|
+| **CIC-IDS2017** | `MachineLearningCSV.zip` (CICFlowMeter features, 8 day files, 2,830,743 flows, 14 attack classes). 11 columns mapped into the schema; 530,897 exact duplicates dropped; 10 % per-class sample with a floor of 5,000 (rare classes kept whole) = 253,259 flows, 25.7 % attacks; stratified 70/30 split. | 235 MB zip, 885 MB CSV | Free for research with citation, per the Canadian Institute for Cybersecurity (UNB) | Sharafaldin, Lashkari, Ghorbani. *Toward Generating a New Intrusion Detection Dataset and Intrusion Traffic Characterization.* ICISSP 2018 |
+| **UNSW-NB15** | Official partition: training set 175,341 flows, testing set 82,332 flows (10 classes). 22 features (14 direct, 2 protocol flags, 6 derived). | 48 MB | Free for academic research with citation, per UNSW Canberra Cyber | Moustafa, Slay. *UNSW-NB15: a comprehensive data set for network intrusion detection systems.* MilCIS 2015 |
+
+Official hosts gate downloads behind forms, so `scripts/download_*.py` fetch byte-identical
+mirrors from the Hugging Face Hub, resume interrupted transfers and **verify SHA-256** against
+the pinned hashes ([ADR 0006](docs/adr/0006-data-sources-sampling-and-splits.md)). Datasets are
+never committed; `tests/fixtures/` holds ~930 sampled rows for CI.
 
 ## Quickstart
 
 ```bash
-pip install -e ".[dev]"      # numpy + scikit-learn only; no torch, no downloads
-make test                    # ~15 s
-make demo                    # full study on 4000 synthetic flows (~2-3 min), writes results/report.md
-python -m feint run --data path/to/CIC-IDS2017.csv --max-rows 100000   # optional real data
-python -m feint generate --n 1000 --out flows.csv
+git clone https://github.com/rakshit-737/feint && cd feint
+pip install -e ".[dev]"                 # numpy, pandas, scikit-learn, xgboost (+ matplotlib, fastapi for dev)
+python -m pytest -q                     # 24 tests; real-data tests skip without datasets
+python -m feint run --quick --n 3000 --out results/demo   # 1-minute synthetic smoke study
 ```
 
-## Results (synthetic data, `make demo`, seed 0)
+Score flows over HTTP with explanations (after a run with `--save-model`):
 
-Produced by an actual run; see `results/report.md`. eps = L-inf budget in standardised log-feature space. Detection rate is measured on 600 held-out attack flows.
+```bash
+python -m feint serve --model results/unsw_nb15/model.joblib
+curl -s localhost:8000/score -H 'content-type: application/json' \
+  -d '{"explain": true, "flows": [{"dur": 0.00001, "spkts": 2, "dpkts": 0, "sbytes": 114, "sttl": 254, "proto_udp": 1}]}'
+```
 
-**Clean test set**
+## Reproducing the benchmarks
 
-| model | acc | recall | FPR | precision @ 0.1% attack prevalence |
-|---|---|---|---|---|
-| baseline | 0.993 | 0.981 | 0.0012 | 0.452 |
-| adv-trained | 0.988 | 0.994 | 0.0155 | 0.060 |
+`make` is optional; every target is a plain command.
 
-**Constrained (realisable) PGD evasion: detection rate**
-
-| eps | baseline | adv-trained |
+| step | command | time (laptop CPU, shared with other jobs) |
 |---|---|---|
-| 0.0 | 0.981 | 0.994 |
-| 0.5 | 0.764 | 0.983 |
-| 1.0 | 0.372 | 0.983 |
-| 2.0 | 0.328 | 0.964 |
+| download data | `python scripts/download_unsw_nb15.py && python scripts/download_cicids2017.py` (set `FEINT_DATA` to choose the directory, default `./data`) | network bound |
+| UNSW-NB15 study | `python -m feint run --data unsw_nb15 --out results/unsw_nb15 --save-model` | ~20 min |
+| CIC-IDS2017 study | `python -m feint run --data cicids2017 --out results/cicids2017` | ~60 min (+7 min first CSV load; cached after) |
+| real-data tests | `FEINT_DATA=./data python -m pytest -q -m realdata` | |
 
-**Unconstrained (textbook, unrealisable) PGD: detection rate**
+Key knobs: `--eps`, `--iters` (black-box queries), `--steps` (PGD), `--adv-rounds`, `--max-eval`,
+`--frac` (CIC sampling), `--seed`.
 
-| eps | baseline | adv-trained |
-|---|---|---|
-| 0.5 | 0.339 | 0.678 |
-| 2.0 | 0.328 | 0.417 |
+## Full results
 
-Takeaways:
-1. **The collapse** — a 98% detector drops to 33% under white-box evasion that only pads/delays the attacker's own traffic; 100% of the constrained adversarial flows pass the validity checker.
-2. **The recovery** — adversarial training restores ~96% detection at eps=2 against the constrained attacker, but only ~42% against the unconstrained one: robustness claims depend on the threat model.
-3. **The cost** — hardening raised clean FPR from 0.12% to 1.55%, which at 0.1% prevalence cuts precision from 45% to 6%. Base-rate honesty matters more than the accuracy column.
-4. The IsolationForest (benign-only) flagged all 242 evasions at eps=2 because they are pushed off the benign manifold. This is *not* a robustness claim: the attacker was not adaptive to it.
+Complete generated reports, including per-family tables, SHAP rankings, single-feature
+exploitability, counterfactual statistics, poisoning and drift tables:
+[CIC-IDS2017](results/cicids2017/report.md) · [UNSW-NB15](results/unsw_nb15/report.md).
 
-Numbers are from synthetic data and illustrate the methodology, not real-world performance.
+**Clean detection vs. baselines and published numbers**
+
+| model | CIC acc | CIC F1 | CIC FPR | CIC prec @0.1 % | UNSW acc | UNSW F1 | UNSW FPR |
+|---|---|---|---|---|---|---|---|
+| Logistic regression | 0.8925 | 0.7833 | 0.0607 | 0.012 | 0.8128 | 0.8512 | 0.3832 |
+| Random forest | 0.9963 | 0.9928 | 0.0032 | 0.236 | 0.8643 | 0.8874 | 0.2661 |
+| IsolationForest (unsupervised) | 0.7420 | 0.0420 | 0.0093 | 0.002 | 0.4459 | 0.0108 | 0.0146 |
+| Autoencoder (unsupervised) | 0.7611 | 0.1751 | 0.0100 | 0.010 | 0.5857 | 0.4167 | 0.0259 |
+| MLP | 0.9925 | 0.9854 | 0.0064 | 0.134 | 0.8566 | 0.8817 | 0.2822 |
+| XGBoost | **0.9970** | **0.9942** | 0.0035 | 0.223 | **0.8655** | **0.8879** | 0.2593 |
+| FEINT ensemble | 0.9894 | 0.9797 | 0.0133 | 0.070 | 0.8568 | 0.8820 | 0.2848 |
+| FEINT ensemble + adv. training | 0.9890 | 0.9790 | 0.0137 | 0.068 | 0.8561 | 0.8814 | 0.2844 |
+| XGBoost, robust features only | 0.9793 | 0.9611 | 0.0257 | 0.037 | 0.8165 | 0.8493 | 0.3338 |
+| *Published: RF, Sharafaldin et al. 2018 (all 80 features, weighted P/R/F1)* | | *0.97* | | | | | |
+| *Published: decision tree, Moustafa & Slay 2016 (official split)* | | | | | *0.8556* | | |
+
+Our clean numbers are in line with the literature: on CIC-IDS2017 with 11 of the ~80 CICFlowMeter
+features and de-duplicated data, XGBoost reaches F1 0.994; on the UNSW-NB15 official split the
+well-known ~13-15 % accuracy gap between the training and testing distributions reproduces
+(XGBoost 86.6 % vs. the published 85.6 % decision tree). Published numbers use different feature
+sets and preprocessing and are shown for orientation, not as a controlled comparison.
+
+![UNSW-NB15 robustness curves](results/unsw_nb15/robustness_curves.png)
+
+| CIC-IDS2017 global importance | CIC-IDS2017 drift |
+|---|---|
+| ![SHAP](results/cicids2017/shap_importance.png) | ![drift](results/cicids2017/drift_recall.png) |
 
 ## Prior art and how FEINT differs
 
-| Existing | What it does | FEINT |
-| --- | --- | --- |
-| CIC-IDS / NSL-KDD classifier repos | Train, report accuracy | Reports accuracy-vs-budget curves and precision at realistic prevalence |
-| IBM ART | Generic attack/defence primitives | End-to-end NIDS study with network-domain constraint projection and a validity checker; zero heavy deps |
-| Kitsune | Unsupervised online NIDS | Focus is adaptive-adversary robustness reporting, not detection alone |
-| SHAP / LIME / DiCE | Generic explainers | Planned: counterfactuals under the same flow constraints (TODO) |
+| work | what it does | FEINT's difference |
+|---|---|---|
+| Thousands of CIC-IDS / NSL-KDD classifier repos | Train, report accuracy | Robustness curves, adaptive attacks, base-rate precision, drift, poisoning |
+| IBM Adversarial Robustness Toolbox | Attack / defence primitives | End-to-end NIDS study; attacks are *schema-constrained* inside the loop and adaptive against the full ensemble ([ADR 0003](docs/adr/0003-own-attack-engine-instead-of-art.md)) |
+| Kitsune (Mirsky et al., NDSS 2018) | Online autoencoder NIDS | Uses an autoencoder member, but the study is about adaptive-adversary robustness |
+| Constrained / feasible evasion research (e.g. Sheatsley et al. 2022; Chernikova & Oprea, FENCE 2022; Apruzzese et al. 2022; Pierazzi et al., S&P 2020 on problem-space attacks) | Show that realistic constraints change robustness conclusions | FEINT is a reproducible, tested, two-dataset implementation of that methodology with hardening, counterfactual explanations and poisoning in one pipeline, not a new algorithm |
+| SHAP / LIME / DiCE | Generic explainers | Counterfactuals obey the same network constraints as the red team, so "what would evade this alert" is a realisable answer |
 
-The contribution is methodology: constrained vs unconstrained evaluation side by side, with every adversarial flow checked for realisability.
+**Honest gap:** the attack primitives, datasets and explainers all exist. FEINT's contribution is the
+disciplined end-to-end study and its honesty rules: realisable perturbations only, adaptive attacks
+against the *defended* system, monotone curves, fixed-prevalence precision, and published limitations.
 
-## Status and TODO (Grade C/D/E items, not built)
+## Limitations
 
-- [ ] XGBoost / PyTorch autoencoder ensemble members (kept to sklearn for a light install)
-- [ ] Poisoning / backdoor study and training-data anomaly checks (Grade C/D)
-- [ ] SHAP global importance + constraint-respecting counterfactual explanations (Grade B/C)
-- [ ] Robust-feature selection and an adversarial-input detector that is evaluated against an *adaptive* attacker
-- [ ] Richer constraint semantics: protocol-specific rules, problem-space validation by regenerating pcaps and re-running CICFlowMeter (Grade D)
-- [ ] Full CIC-IDS2017/2018, UNSW-NB15 benchmarking (loader exists for CIC-IDS2017 column names; datasets are not bundled)
-- [ ] Concept-drift analysis, model-stealing experiment
-- [ ] React + Recharts dashboard (Grade E for this MVP; `report.json` is the data contract)
+- **Feature-space, not problem-space.** Constraints approximate what packet-level changes can do;
+  side effects (more packets also lengthen duration and change `ct_*` counters) and attack
+  semantics (a DoS needs its volume) are not enforced. Both simplifications favour the attacker.
+- **Empirical robustness only.** Our attacks are strong but not exhaustive; every robustness number
+  is an upper bound. Adversarial training was evaluated with the same attack family it trained on.
+- **The adversarial-input alarm's 1.000 AUC is not a robustness claim.** Against a detector-aware
+  attacker it still helps on CIC-IDS2017 (0.417 -> 0.880 detection) but raises FPR 0.35 % -> 2.3 %.
+- **Poisoning defence is partial.** The robust-feature kNN sanitiser recovers most poisons but a
+  handful of survivors keeps the backdoor alive (success 0.52 on CIC, 0.76 on UNSW). On CIC the
+  trigger value alone already evades 33 % of the clean model's detections because `init_win_fwd` is
+  itself a strong, attacker-controlled feature.
+- **Dataset artefacts.** CIC-IDS2017 has known labelling issues (Engelen et al., 2021) and UNSW-NB15's
+  `sttl` / `swin` separate classes because of the testbed; both inflate clean scores. FEINT surfaces
+  them (SHAP, single-feature attacks) rather than fixing them.
+- **Sampling.** CIC results use a de-duplicated 10 % per-class sample (253 k flows) for CPU
+  budget; UNSW uses the full official split. One seed; no confidence intervals yet.
+- **Not implemented from the spec:** self-captured lab pcaps via CICFlowMeter, React dashboard
+  (replaced by generated PNG/Markdown reports and a JSON API), model-stealing experiments.
 
-See [THREAT_MODEL.md](THREAT_MODEL.md) and [SECURITY.md](SECURITY.md).
+## Roadmap
+
+- [ ] Multiple seeds with confidence intervals; bootstrap the robustness curves
+- [ ] Problem-space validation: replay perturbed flows in a lab network and re-extract with CICFlowMeter
+- [ ] Coupled constraints (packets -> duration, connection rate -> `ct_*`) and attack-semantics constraints
+- [ ] Certified / randomised-smoothing baseline for tabular features
+- [ ] Stronger poisoning defences (spectral signatures, trigger-value audits) and clean-label poisoning
+- [ ] CIC-IDS2018 and CICIoT2023 schemas; small web dashboard over the JSON reports
+
+## Repository layout
+
+```
+feint/        schema, data, model, attack, harden, explain, poison, metrics, pipeline, report, api, cli
+scripts/      download_cicids2017.py, download_unsw_nb15.py (checksummed, resumable)
+results/      cicids2017/, unsw_nb15/ : report.md, report.json, figures
+tests/        pytest suite + tiny real-data fixtures
+docs/adr/     architecture decision records
+```
+
+## Safety and ethics
+
+FEINT is a defensive, lab-only research tool. It attacks **feature vectors** of public datasets
+against models trained locally; it generates no traffic, contains no exploit code or malware and
+scans nothing. The evasion techniques studied (padding, delays, TCP window / TTL choice) are
+well known; publishing their measured effect helps defenders choose robust features. See
+[THREAT_MODEL.md](THREAT_MODEL.md) and [SECURITY.md](SECURITY.md).
+
+## License and citation
+
+Code: [MIT](LICENSE). Datasets keep their original terms; cite the dataset papers above when using
+the results. Contributions welcome, see [CONTRIBUTING.md](CONTRIBUTING.md) and the
+[changelog](CHANGELOG.md).
