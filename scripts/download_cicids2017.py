@@ -2,7 +2,7 @@
 
 Source of truth: Canadian Institute for Cybersecurity, University of New Brunswick
 (https://www.unb.ca/cic/datasets/ids-2017.html). UNB now gates direct downloads behind a
-form, so by default we fetch the byte-identical ``MachineLearningCSV.zip`` mirrored on the
+form, so by default we fetch a ``MachineLearningCSV.zip`` mirror on the
 Hugging Face Hub and verify its SHA-256. ~235 MB zipped, ~1.1 GB extracted, 2,830,743 flows.
 
 Usage:  python scripts/download_cicids2017.py [--dest D:/cyber-portfolio/datasets/feint/cicids2017]

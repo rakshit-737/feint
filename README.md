@@ -55,7 +55,10 @@ What the numbers say:
    produce 0 % realisable flows. Under the realistic constraints the undefended XGBoost keeps 42 %,
    almost entirely volume attacks (DoS Hulk 94 %, GoldenEye 64 %, DDoS 57 %) whose server-side
    features the attacker cannot touch; PortScan, slowloris, Slowhttptest, FTP/SSH-Patator, Bot and
-   web attacks all go to 0 %.
+   web attacks all go to 0 %. The unconstrained attack is not a strict upper bound, though: on
+   UNSW-NB15 the ensemble keeps 0.467 detection at eps=2 against it versus 0.255 against the
+   constrained attack, because large unconstrained perturbations trip the autoencoder; our
+   attacks are strong but not optimal (see Limitations).
 2. **The most important feature is attacker-controlled.** TreeSHAP ranks `init_win_fwd` (client TCP
    window) first on CIC-IDS2017 and `sttl` (source IP TTL, a known UNSW-NB15 testbed artefact) first
    on UNSW-NB15. Controlling *only* `sttl` drops UNSW XGBoost detection to 0.2 %; controlling only
@@ -73,7 +76,7 @@ What the numbers say:
 | Counterfactuals: XGBoost alerts with a realisable evasion within eps=2 | 59.5 % (1.71 features changed, median eps 0.031) | 98.5 % (2.16 features) |
 | ...same, against the adversarially-trained ensemble | 6.0 % | 0.5 % |
 | Adversarial-input alarm, static attacker (ROC-AUC / FPR) | 1.000 / 0.9 % | 1.000 / 1.3 % |
-| ...detector-aware adaptive attacker vs. XGBoost OR alarm (detection at eps=2) | 0.880 (XGBoost alone: 0.417) | 0.998 (XGBoost alone: 0.000) |
+| ...detector-aware adaptive attacker vs. XGBoost OR alarm (detection at eps=2) | 0.880 (XGBoost alone: 0.417), benign FPR 2.3 % | 0.998 (XGBoost alone: 0.000), benign FPR 27.3 % (XGBoost alone: 25.9 %) |
 | Backdoor, 2 % poisoned training flows: success rate clean -> poisoned -> sanitised | 0.33 -> **1.00** -> 0.52 | 0.04 -> **1.00** -> 0.76 |
 | Poison recall / precision of robust-feature kNN sanitiser | 0.81 / 0.71 | 0.93 / 0.38 |
 
@@ -142,9 +145,10 @@ no realisable evasion within budget: this alert is robust to the modelled attack
 | **CIC-IDS2017** | `MachineLearningCSV.zip` (CICFlowMeter features, 8 day files, 2,830,743 flows, 14 attack classes). 11 columns mapped into the schema; 530,897 exact duplicates dropped; 10 % per-class sample with a floor of 5,000 (rare classes kept whole) = 253,259 flows, 25.7 % attacks; stratified 70/30 split. | 235 MB zip, 885 MB CSV | Free for research with citation, per the Canadian Institute for Cybersecurity (UNB) | Sharafaldin, Lashkari, Ghorbani. *Toward Generating a New Intrusion Detection Dataset and Intrusion Traffic Characterization.* ICISSP 2018 |
 | **UNSW-NB15** | Official partition: training set 175,341 flows, testing set 82,332 flows (10 classes). 22 features (14 direct, 2 protocol flags, 6 derived). | 48 MB | Free for academic research with citation, per UNSW Canberra Cyber | Moustafa, Slay. *UNSW-NB15: a comprehensive data set for network intrusion detection systems.* MilCIS 2015 |
 
-Official hosts gate downloads behind forms, so `scripts/download_*.py` fetch byte-identical
-mirrors from the Hugging Face Hub, resume interrupted transfers and **verify SHA-256** against
-the pinned hashes ([ADR 0006](docs/adr/0006-data-sources-sampling-and-splits.md)). Datasets are
+Official hosts gate downloads behind forms, so `scripts/download_*.py` fetch third-party
+mirrors from the Hugging Face Hub (not checked byte-for-byte against the official archives; row
+counts match the official releases: 2,830,743 CIC flows, 175,341 / 82,332 UNSW flows), resume
+interrupted transfers and **verify SHA-256** against the pinned hashes ([ADR 0006](docs/adr/0006-data-sources-sampling-and-splits.md)). Datasets are
 never committed; `tests/fixtures/` holds ~930 sampled rows for CI.
 
 ## Quickstart
@@ -197,14 +201,21 @@ exploitability, counterfactual statistics, poisoning and drift tables:
 | FEINT ensemble | 0.9894 | 0.9797 | 0.0133 | 0.070 | 0.8568 | 0.8820 | 0.2848 |
 | FEINT ensemble + adv. training | 0.9890 | 0.9790 | 0.0137 | 0.068 | 0.8561 | 0.8814 | 0.2844 |
 | XGBoost, robust features only | 0.9793 | 0.9611 | 0.0257 | 0.037 | 0.8165 | 0.8493 | 0.3338 |
-| *Published: RF, Sharafaldin et al. 2018 (all 80 features, weighted P/R/F1)* | | *0.97* | | | | | |
-| *Published: decision tree, Moustafa & Slay 2016 (official split)* | | | | | *0.8556* | | |
+| *Published: RF, Sharafaldin et al. 2018, Table 4 (all 80 features, weighted P/R/F1)* | | *0.97* | | | | | |
+| *Published: decision tree, Moustafa & Slay 2016 [^ms16] (FAR 15.78 %)* | | | | | *0.8556* | | |
 
 Our clean numbers are in line with the literature: on CIC-IDS2017 with 11 of the ~80 CICFlowMeter
 features and de-duplicated data, XGBoost reaches F1 0.994; on the UNSW-NB15 official split the
 well-known ~13-15 % accuracy gap between the training and testing distributions reproduces
 (XGBoost 86.6 % vs. the published 85.6 % decision tree). Published numbers use different feature
 sets and preprocessing and are shown for orientation, not as a controlled comparison.
+The Sharafaldin et al. figure (RF: Pr 0.98, Rc 0.97, F1 0.97) was checked against Table 4 of the
+ICISSP 2018 paper; the Moustafa & Slay figure (DT: 85.56 % accuracy, 15.78 % FAR) was checked
+against secondary sources only, as the paper itself is paywalled.
+
+[^ms16]: N. Moustafa, J. Slay. *The evaluation of Network Anomaly Detection Systems: Statistical
+    analysis of the UNSW-NB15 data set and the comparison with the KDD99 data set.* Information
+    Security Journal: A Global Perspective 25(1-3), 2016.
 
 ![UNSW-NB15 robustness curves](results/unsw_nb15/robustness_curves.png)
 
@@ -232,7 +243,9 @@ against the *defended* system, monotone curves, fixed-prevalence precision, and 
   side effects (more packets also lengthen duration and change `ct_*` counters) and attack
   semantics (a DoS needs its volume) are not enforced. Both simplifications favour the attacker.
 - **Empirical robustness only.** Our attacks are strong but not exhaustive; every robustness number
-  is an upper bound. Adversarial training was evaluated with the same attack family it trained on.
+  is an upper bound. Evidence: the unconstrained attack (a superset of the constrained one) is
+  *weaker* than the constrained one against the UNSW-NB15 ensemble (0.467 vs 0.255 detection at
+  eps=2). Adversarial training was evaluated with the same attack family it trained on.
 - **The adversarial-input alarm's 1.000 AUC is not a robustness claim.** Against a detector-aware
   attacker it still helps on CIC-IDS2017 (0.417 -> 0.880 detection) but raises FPR 0.35 % -> 2.3 %.
 - **Poisoning defence is partial.** The robust-feature kNN sanitiser recovers most poisons but a

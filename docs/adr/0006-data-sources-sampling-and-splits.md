@@ -12,7 +12,7 @@ between random train/test splits and inflate reported accuracy.
 
 ## Decision
 
-- Download byte-identical mirrors from the Hugging Face Hub and verify SHA-256
+- Download third-party mirrors from the Hugging Face Hub and verify SHA-256
   (`scripts/download_*.py`); cite the official source and licence in the README.
 - CIC-IDS2017: map 11 CICFlowMeter columns into the schema, drop non-finite rows, drop exact
   duplicate (feature vector, label) rows *before* splitting, then sample 10 % per class while
