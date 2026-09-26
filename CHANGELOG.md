@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.0.0] - 2026-09-26
+
+### Added
+- `feint seeds`: multi-seed robustness study with 95 % Student-t CIs (and Wilson intervals);
+  3-seed results for CIC-IDS2017 and UNSW-NB15 in `results/*/seeds.{json,md}`.
+- `feint steal`: model-stealing study (label-only queries -> transfer attack); UNSW-NB15 results.
+- MkDocs Material docs site on GitHub Pages with a static results dashboard (`/demo/`).
+- Dockerfile (slim, non-root), docker-compose for the scoring API, release workflow publishing
+  `ghcr.io/rakshit-737/feint` and wheel/sdist on `v*` tags.
+
+### Changed
+- Architecture mermaid labels quoted; README limitations/roadmap updated.
+
 ## [0.2.0] - 2026-09-26
 
 ### Added
