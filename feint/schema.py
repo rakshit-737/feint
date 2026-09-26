@@ -139,7 +139,7 @@ def _cic_relations(s: Schema, X: np.ndarray, X0: np.ndarray) -> np.ndarray:
     fp, fb, mx = s.idx["fwd_pkts"], s.idx["fwd_bytes"], s.idx["fwd_pkt_len_max"]
     cap = np.maximum(MTU, X0[:, mx])  # existing packets may already exceed MTU (offload)
     X[:, fb] = np.clip(X[:, fb], X0[:, fb], np.maximum(X[:, fp] * cap, X0[:, fb]))
-    lo = np.maximum(X0[:, mx], X[:, fb] / np.maximum(X[:, fp], 1.0))
+    lo = np.maximum(X0[:, mx], np.ceil(np.round(X[:, fb] / np.maximum(X[:, fp], 1.0), 6)))
     hi = np.maximum(np.minimum(X[:, fb], cap), lo)
     X[:, mx] = np.clip(X[:, mx], lo, hi)
     return X
@@ -183,7 +183,7 @@ CIC_SCHEMA = Schema(
     features=CIC_FEATURES,
     up=["duration", "fwd_pkts", "fwd_bytes", "fwd_pkt_len_max"],
     free={"init_win_fwd": (0.0, 65535.0)},
-    integer=["fwd_pkts"],
+    integer=["fwd_pkts", "fwd_bytes", "fwd_pkt_len_max", "init_win_fwd"],
     derived={"mean_iat": _mean_iat, "fwd_bpp": _fwd_bpp, "pkt_ratio": _pkt_ratio,
              "bytes_per_s": _bytes_per_s},
     relations=_cic_relations,
@@ -255,7 +255,7 @@ UNSW_SCHEMA = Schema(
     features=UNSW_FEATURES,
     up=["dur", "spkts", "sbytes"],
     free={"sttl": (1.0, 255.0), "swin": (0.0, 255.0)},
-    integer=["spkts"],
+    integer=["spkts", "sbytes", "sttl", "swin"],
     derived={"smean": _smean, "dmean": _dmean, "sload": _sload, "dload": _dload,
              "rate": _rate, "sinpkt": _sinpkt},
     relations=_unsw_relations,

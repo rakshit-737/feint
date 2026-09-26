@@ -62,7 +62,7 @@ def synthetic_flows(n: int = 4000, attack_frac: float = 0.3, seed: int = 0) -> D
         X[:, s.idx["fwd_pkt_len_max"]] = np.minimum(np.ceil(fbpp_ * rng.uniform(1.0, 2.0, k)),
                                                     np.maximum(X[:, s.idx["fwd_bytes"]], 0))
         X[:, s.idx["fwd_pkt_len_max"]] = np.maximum(X[:, s.idx["fwd_pkt_len_max"]],
-                                                    X[:, s.idx["fwd_bytes"]] / fwd_pkts)
+                                                    np.ceil(X[:, s.idx["fwd_bytes"]] / fwd_pkts))
         X[:, s.idx["bwd_pkt_len_max"]] = np.ceil(bbpp_ * rng.uniform(1.0, 2.0, k)) * (bwd_pkts > 0)
         X[:, s.idx["syn_count"]] = rng.poisson(syn, k)
         X[:, s.idx["dst_port"]] = rng.choice(ports, k)
@@ -127,7 +127,7 @@ def _frame_to_cic(df, source: str = "") -> tuple[np.ndarray, np.ndarray, np.ndar
     X[:, s.idx["fwd_pkts"]] = np.maximum(X[:, s.idx["fwd_pkts"]], 1.0)
     # CICFlowMeter occasionally reports max > total (fragment accounting); repair minimally
     fb, mx, fp = s.idx["fwd_bytes"], s.idx["fwd_pkt_len_max"], s.idx["fwd_pkts"]
-    X[:, mx] = np.clip(X[:, mx], X[:, fb] / X[:, fp], np.maximum(X[:, fb], 0))
+    X[:, mx] = np.clip(X[:, mx], np.ceil(np.round(X[:, fb] / X[:, fp], 6)), np.maximum(X[:, fb], 0))
     labels = np.array([_norm_label(v) for v in df["Label"].astype(str)])
     return s.recompute(X[ok]), labels[ok], ok
 
