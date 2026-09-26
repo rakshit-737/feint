@@ -1,0 +1,197 @@
+{
+  "n_train": 2800,
+  "n_test": 1200,
+  "features": [
+    "duration",
+    "fwd_pkts",
+    "bwd_pkts",
+    "fwd_bytes",
+    "bwd_bytes",
+    "mean_iat",
+    "syn_count",
+    "fwd_bpp",
+    "pkt_ratio"
+  ],
+  "models": {
+    "baseline": {
+      "clean": {
+        "accuracy": 0.9933333333333333,
+        "precision": 0.9971751412429378,
+        "recall": 0.9805555555555555,
+        "f1": 0.988795518207283,
+        "auc": 0.9998511904761904,
+        "fpr": 0.0011904761904761906,
+        "precision_at_0.1pct_prevalence": 0.45190197512801755
+      },
+      "constrained": [
+        {
+          "eps": 0.0,
+          "detection_rate": 0.9805555555555555,
+          "attack_success_rate": 0.0,
+          "valid_rate": 1.0
+        },
+        {
+          "eps": 0.25,
+          "detection_rate": 0.9305555555555556,
+          "attack_success_rate": 0.05099150141643059,
+          "valid_rate": 1.0
+        },
+        {
+          "eps": 0.5,
+          "detection_rate": 0.7638888888888888,
+          "attack_success_rate": 0.22096317280453256,
+          "valid_rate": 1.0
+        },
+        {
+          "eps": 1.0,
+          "detection_rate": 0.37222222222222223,
+          "attack_success_rate": 0.6203966005665722,
+          "valid_rate": 1.0
+        },
+        {
+          "eps": 1.5,
+          "detection_rate": 0.3277777777777778,
+          "attack_success_rate": 0.6657223796033994,
+          "valid_rate": 1.0
+        },
+        {
+          "eps": 2.0,
+          "detection_rate": 0.3277777777777778,
+          "attack_success_rate": 0.6657223796033994,
+          "valid_rate": 1.0
+        }
+      ],
+      "unconstrained": [
+        {
+          "eps": 0.0,
+          "detection_rate": 0.9805555555555555,
+          "attack_success_rate": 0.0,
+          "valid_rate": 1.0
+        },
+        {
+          "eps": 0.25,
+          "detection_rate": 0.5944444444444444,
+          "attack_success_rate": 0.3937677053824363,
+          "valid_rate": 0.3277777777777778
+        },
+        {
+          "eps": 0.5,
+          "detection_rate": 0.3388888888888889,
+          "attack_success_rate": 0.6543909348441926,
+          "valid_rate": 0.3277777777777778
+        },
+        {
+          "eps": 1.0,
+          "detection_rate": 0.3277777777777778,
+          "attack_success_rate": 0.6657223796033994,
+          "valid_rate": 0.3277777777777778
+        },
+        {
+          "eps": 1.5,
+          "detection_rate": 0.3277777777777778,
+          "attack_success_rate": 0.6657223796033994,
+          "valid_rate": 0.3277777777777778
+        },
+        {
+          "eps": 2.0,
+          "detection_rate": 0.3277777777777778,
+          "attack_success_rate": 0.6657223796033994,
+          "valid_rate": 0.3277777777777778
+        }
+      ]
+    },
+    "adv_trained": {
+      "clean": {
+        "accuracy": 0.9875,
+        "precision": 0.9649595687331537,
+        "recall": 0.9944444444444445,
+        "f1": 0.9794801641586868,
+        "auc": 0.9997619047619047,
+        "fpr": 0.015476190476190477,
+        "precision_at_0.1pct_prevalence": 0.06043359780066077
+      },
+      "constrained": [
+        {
+          "eps": 0.0,
+          "detection_rate": 0.9944444444444445,
+          "attack_success_rate": 0.0,
+          "valid_rate": 1.0
+        },
+        {
+          "eps": 0.25,
+          "detection_rate": 0.9944444444444445,
+          "attack_success_rate": 0.002793296089385475,
+          "valid_rate": 1.0
+        },
+        {
+          "eps": 0.5,
+          "detection_rate": 0.9833333333333333,
+          "attack_success_rate": 0.013966480446927373,
+          "valid_rate": 1.0
+        },
+        {
+          "eps": 1.0,
+          "detection_rate": 0.9833333333333333,
+          "attack_success_rate": 0.013966480446927373,
+          "valid_rate": 1.0
+        },
+        {
+          "eps": 1.5,
+          "detection_rate": 0.9638888888888889,
+          "attack_success_rate": 0.0335195530726257,
+          "valid_rate": 1.0
+        },
+        {
+          "eps": 2.0,
+          "detection_rate": 0.9638888888888889,
+          "attack_success_rate": 0.036312849162011177,
+          "valid_rate": 1.0
+        }
+      ],
+      "unconstrained": [
+        {
+          "eps": 0.0,
+          "detection_rate": 0.9944444444444445,
+          "attack_success_rate": 0.0,
+          "valid_rate": 1.0
+        },
+        {
+          "eps": 0.25,
+          "detection_rate": 0.7166666666666667,
+          "attack_success_rate": 0.27932960893854747,
+          "valid_rate": 0.37777777777777777
+        },
+        {
+          "eps": 0.5,
+          "detection_rate": 0.6777777777777778,
+          "attack_success_rate": 0.31843575418994413,
+          "valid_rate": 0.37777777777777777
+        },
+        {
+          "eps": 1.0,
+          "detection_rate": 0.6638888888888889,
+          "attack_success_rate": 0.3324022346368715,
+          "valid_rate": 0.37777777777777777
+        },
+        {
+          "eps": 1.5,
+          "detection_rate": 0.6277777777777778,
+          "attack_success_rate": 0.3687150837988827,
+          "valid_rate": 0.37777777777777777
+        },
+        {
+          "eps": 2.0,
+          "detection_rate": 0.4166666666666667,
+          "attack_success_rate": 0.5810055865921788,
+          "valid_rate": 0.37777777777777777
+        }
+      ]
+    }
+  },
+  "ensemble_backstop": {
+    "eps": 2.0,
+    "evaded_baseline": 242,
+    "caught_by_isolation_forest": 242,
+    "iforest_fpr_on_benign_test": 0.01904761904761905
+  }
+}
