@@ -128,7 +128,9 @@ def _frame_to_cic(df, source: str = "") -> tuple[np.ndarray, np.ndarray, np.ndar
     # CICFlowMeter occasionally reports max > total (fragment accounting); repair minimally
     fb, mx, fp = s.idx["fwd_bytes"], s.idx["fwd_pkt_len_max"], s.idx["fwd_pkts"]
     X[:, mx] = np.clip(X[:, mx], np.ceil(np.round(X[:, fb] / X[:, fp], 6)), np.maximum(X[:, fb], 0))
-    labels = np.array([_norm_label(v) for v in df["Label"].astype(str)])
+    raw = df["Label"].astype(str).to_numpy()
+    uniq, inv = np.unique(raw, return_inverse=True)
+    labels = np.array([_norm_label(v) for v in uniq], dtype=object)[inv].astype(str)
     return s.recompute(X[ok]), labels[ok], ok
 
 
@@ -149,14 +151,22 @@ def load_cicids2017(root: str | Path | None = None, frac: float = 0.1, keep_rare
                     seed: int = 0, dedup: bool = True) -> Dataset:
     """Load CIC-IDS2017 MachineLearningCVE (all 8 day files).
 
-    ``frac`` uniformly subsamples every class, except classes with fewer than
-    ``keep_rare`` flows which are kept whole (Heartbleed, Infiltration, SQLi ...).
+    ``frac`` uniformly subsamples every class, but every class keeps at least
+    ``keep_rare`` flows (classes smaller than that are kept whole: Heartbleed,
+    Infiltration, SQLi ...). The sampled matrix is cached next to the CSVs.
     Exact duplicate (features, label) rows are dropped *before* splitting so the
     same flow cannot sit in both train and test. ``group`` is the capture-day index.
     """
     import pandas as pd
 
     root = Path(root) if root else DATA_ROOT / "cicids2017"
+    cache = Path(root) / f".feint_cache_f{frac}_k{keep_rare}_s{seed}_d{int(dedup)}.npz"
+    if cache.exists():
+        c = np.load(cache, allow_pickle=False)
+        import json
+
+        return Dataset(c["X"], c["y"], list(CIC_SCHEMA.features), CIC_SCHEMA, c["attack"].astype(str),
+                       c["group"], json.loads(str(c["info"])))
     files = sorted(Path(root).rglob("*pcap_ISCX.csv"))
     if not files:
         raise FileNotFoundError(f"no CIC-IDS2017 CSVs under {root}; run scripts/download_cicids2017.py")
@@ -192,6 +202,12 @@ def load_cicids2017(root: str | Path | None = None, frac: float = 0.1, keep_rare
             "rows_finite": int(n_finite), "rows_dedup": int(n_dedup), "rows_sampled": int(len(y)),
             "frac": frac, "keep_rare": keep_rare,
             "class_counts": {str(c): int((lab == c).sum()) for c in np.unique(lab)}}
+    try:
+        import json
+
+        np.savez_compressed(cache, X=X, y=y, attack=lab.astype("U32"), group=grp, info=json.dumps(info))
+    except OSError:  # read-only data dir: caching is best-effort
+        pass
     return Dataset(X, y, list(CIC_SCHEMA.features), CIC_SCHEMA, lab, grp, info)
 
 
