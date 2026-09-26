@@ -6,6 +6,7 @@ jobs:
   test:
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
         python: ["3.11", "3.12"]
     steps:
@@ -13,7 +14,11 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python }}
+          cache: pip
       - run: pip install -e ".[dev]"
-      - run: pytest -q
-      - name: smoke demo
-        run: python -m feint run --n 1000 --adv-rounds 1 --steps 5 --eps 0 1 --out results
+      - name: lint
+        run: ruff check feint tests scripts
+      - name: tests (fixtures only; real-data tests skip without datasets)
+        run: pytest -q
+      - name: smoke study
+        run: python -m feint run --quick --n 1500 --eps 0 1 --out smoke
