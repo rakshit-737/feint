@@ -46,7 +46,8 @@ def mean_ci(values) -> dict:
     s = float(v.std(ddof=1))
     t = _T975.get(n - 1, 1.96)
     h = t * s / math.sqrt(n)
-    return {"mean": m, "std": s, "ci95": [m - h, m + h], "n": n}
+    # detection rates, F1 and FPR are proportions: clip the interval to [0, 1]
+    return {"mean": m, "std": s, "ci95": [max(0.0, m - h), min(1.0, m + h)], "n": n}
 
 
 def seed_study(ds: Dataset, seeds=(0, 1, 2), cfg: StudyConfig | None = None, adv: bool = False) -> dict:
