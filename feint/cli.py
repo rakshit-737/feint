@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import csv
 import sys
+import warnings
 from pathlib import Path
 
 from .data import load_cicids2017, load_cicids_csv, load_unsw_nb15, synthetic_flows
@@ -61,6 +62,8 @@ def main(argv=None):
     s.add_argument("--port", type=int, default=8000)
 
     a = ap.parse_args(argv)
+    # scikit-learn >= 1.6 on Python 3.14 warns on every parallel predict; keep logs readable
+    warnings.filterwarnings("ignore", category=UserWarning, module=r"sklearn\.")
     if a.cmd == "generate":
         ds = synthetic_flows(a.n, seed=a.seed)
         with open(a.out, "w", newline="") as f:
