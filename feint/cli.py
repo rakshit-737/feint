@@ -1,6 +1,7 @@
 """feint CLI.
 
     python -m feint run --data synthetic|cicids2017|unsw_nb15|<csv> [--quick] [--out DIR]
+    python -m feint seeds --data unsw_nb15 --seeds 0 1 2 --out results/unsw_nb15
     python -m feint generate --n 4000 --out flows.csv
     python -m feint serve --model results/cicids2017/model.joblib   (needs the [api] extra)
 
@@ -56,6 +57,31 @@ def main(argv=None):
     g.add_argument("--seed", type=int, default=0)
     g.add_argument("--out", default="flows.csv")
 
+    sd = sub.add_parser("seeds", help="multi-seed robustness study with 95%% confidence intervals")
+    sd.add_argument("--data", default="synthetic")
+    sd.add_argument("--data-dir", default=None)
+    sd.add_argument("--frac", type=float, default=0.1)
+    sd.add_argument("--n", type=int, default=4000)
+    sd.add_argument("--max-rows", type=int, default=200000)
+    sd.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
+    sd.add_argument("--eps", type=float, nargs="+", default=[0.0, 0.5, 1.0, 2.0])
+    sd.add_argument("--max-eval", type=int, default=1000)
+    sd.add_argument("--adv", action="store_true", help="also adversarially train XGBoost per seed (slow)")
+    sd.add_argument("--quick", action="store_true")
+    sd.add_argument("--out", default="results")
+
+    st = sub.add_parser("steal", help="model-stealing study (label-only queries -> transfer attack)")
+    st.add_argument("--data", default="synthetic")
+    st.add_argument("--data-dir", default=None)
+    st.add_argument("--frac", type=float, default=0.1)
+    st.add_argument("--n", type=int, default=4000)
+    st.add_argument("--max-rows", type=int, default=200000)
+    st.add_argument("--seed", type=int, default=0)
+    st.add_argument("--budgets", type=int, nargs="+", default=[500, 2000, 10000])
+    st.add_argument("--eps", type=float, nargs="+", default=[0.5, 1.0, 2.0])
+    st.add_argument("--quick", action="store_true")
+    st.add_argument("--out", default="results")
+
     s = sub.add_parser("serve", help="HTTP scoring + explanation API (FastAPI)")
     s.add_argument("--model", required=True)
     s.add_argument("--host", default="127.0.0.1")
@@ -80,6 +106,33 @@ def main(argv=None):
         from .api import create_app
 
         uvicorn.run(create_app(a.model), host=a.host, port=a.port)
+        return 0
+
+    if a.cmd == "steal":
+        import json as _json
+
+        from . import steal as ST
+
+        ds = load(a.data, a)
+        cfg = StudyConfig.quick(seed=a.seed) if a.quick else StudyConfig(seed=a.seed)
+        r = ST.steal_study(ds, a.budgets, a.eps, cfg)
+        out = Path(a.out)
+        out.mkdir(parents=True, exist_ok=True)
+        (out / "steal.json").write_text(_json.dumps(r, indent=2))
+        (out / "steal.md").write_text(ST.to_markdown(r), encoding="utf-8")
+        print(ST.to_markdown(r))
+        return 0
+
+    if a.cmd == "seeds":
+        from . import seeds as S
+
+        a.seed = 0  # the data sample is fixed; model / split / attack seeds vary
+        ds = load(a.data, a)
+        cfg = StudyConfig.quick(eps=a.eps) if a.quick else StudyConfig(eps=a.eps, max_eval=a.max_eval)
+        r = S.seed_study(ds, a.seeds, cfg, adv=a.adv)
+        out = S.save(r, a.out)
+        print(S.to_markdown(r))
+        print(f"saved {out / 'seeds.json'}")
         return 0
 
     ds = load(a.data, a)

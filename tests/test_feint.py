@@ -296,3 +296,35 @@ def test_real_cicids2017_loads():
     assert ds.info["rows_raw"] == 2_830_743
     assert ds.info["rows_dedup"] < ds.info["rows_raw"]
     assert S.is_valid(ds.X, ds.X).all()
+
+
+def test_confidence_intervals():
+    from feint.seeds import mean_ci, wilson
+
+    lo, hi = wilson(50, 100)
+    assert lo < 0.5 < hi and abs((hi - lo) / 2 - 0.096) < 0.005
+    assert wilson(0, 10)[0] == 0.0 and wilson(10, 10)[1] == 1.0
+    ci = mean_ci([0.8, 0.9, 1.0])
+    assert abs(ci["mean"] - 0.9) < 1e-9 and ci["ci95"][0] < 0.9 < ci["ci95"][1]
+    assert mean_ci([0.5])["ci95"] == [0.5, 0.5]
+
+
+def test_seed_study_quick(tmp_path):
+    assert main(["seeds", "--quick", "--n", "800", "--seeds", "0", "1", "--eps", "0", "1",
+                 "--out", str(tmp_path)]) == 0
+    r = json.loads((tmp_path / "seeds.json").read_text())
+    assert r["seeds"] == [0, 1]
+    agg = r["aggregate"]["xgboost"]["detection"]["1.0"]
+    assert agg["n"] == 2 and agg["ci95"][0] <= agg["mean"] <= agg["ci95"][1]
+    assert "eps=1.0" in (tmp_path / "seeds.md").read_text()
+
+
+def test_model_stealing_quick(tmp_path):
+    assert main(["steal", "--quick", "--n", "800", "--budgets", "100", "400", "--eps", "1",
+                 "--out", str(tmp_path)]) == 0
+    r = json.loads((tmp_path / "steal.json").read_text())
+    assert set(r["budgets"]) == {"100", "400"}
+    for v in r["budgets"].values():
+        assert 0.5 <= v["agreement"] <= 1.0
+        assert 0.0 <= v["victim_detection"]["1.0"] <= v["victim_detection"]["0.0"] + 1e-9
+    assert "label queries" in (tmp_path / "steal.md").read_text()
