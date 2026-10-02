@@ -265,6 +265,13 @@ def test_api_scoring(tmp_path):
     res = client.post("/score", json={"flows": flows, "explain": True}).json()["results"]
     assert len(res) == 3 and all(0 <= r["p_malicious"] <= 1 for r in res)
     assert all("top_features" in r for r in res)
+    assert client.post("/score", json={"flows": []}).status_code == 422
+    r = client.post("/score", json={"flows": [{"bogus_feature": 1.0}]})
+    assert r.status_code == 422 and "bogus_feature" in r.text
+    assert client.post("/score", json={"flows": [flows[0]] * 1001}).status_code == 422
+    assert client.post("/score", json={"flows": [flows[0]] * 21, "explain": True}).status_code == 422
+    import feint
+    assert client.get("/openapi.json").json()["info"]["version"] == feint.__version__
 
 
 realdata = pytest.mark.skipif(

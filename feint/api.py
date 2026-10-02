@@ -34,8 +34,18 @@ def load_bundle(path: str | Path) -> dict:
     return b
 
 
+MAX_FLOWS = 1000
+MAX_EXPLAIN = 20
+
+
 def score_flows(bundle: dict, flows: list[dict], explain: bool = False) -> list[dict]:
+    """Score flows (feature-name -> value dicts); missing features default to 0."""
     s: Schema = bundle["schema"]
+    if not flows:
+        raise ValueError("flows must contain at least one flow")
+    unknown = sorted({k for f in flows for k in f} - set(s.features))
+    if unknown:
+        raise ValueError(f"unknown feature names for schema {s.name}: {unknown}")
     X = np.array([[float(f.get(n, 0.0)) for n in s.features] for f in flows])
     X = s.recompute(X)
     det = bundle["detector"]
@@ -53,17 +63,26 @@ def score_flows(bundle: dict, flows: list[dict], explain: bool = False) -> list[
 
 
 def create_app(model_path: str | Path):
-    from fastapi import FastAPI
-    from pydantic import BaseModel
+    from fastapi import FastAPI, HTTPException
+    from pydantic import BaseModel, Field, field_validator
+
+    from . import __version__
 
     bundle = load_bundle(model_path)
     s: Schema = bundle["schema"]
-    app = FastAPI(title="FEINT", version="0.2.0",
+    app = FastAPI(title="FEINT", version=__version__,
                   description="Adversarially-hardened network-flow scoring with explanations")
 
     class ScoreRequest(BaseModel):
-        flows: list[dict[str, float]]
+        flows: list[dict[str, float]] = Field(min_length=1, max_length=MAX_FLOWS)
         explain: bool = False
+
+        @field_validator("flows")
+        @classmethod
+        def _finite(cls, v):
+            if any(not np.isfinite(x) for f in v for x in f.values()):
+                raise ValueError("feature values must be finite numbers")
+            return v
 
     @app.get("/health")
     def health():
@@ -76,6 +95,11 @@ def create_app(model_path: str | Path):
 
     @app.post("/score")
     def score(req: ScoreRequest):
-        return {"results": score_flows(bundle, req.flows, req.explain)}
+        if req.explain and len(req.flows) > MAX_EXPLAIN:
+            raise HTTPException(422, f"explain=true accepts at most {MAX_EXPLAIN} flows")
+        try:
+            return {"results": score_flows(bundle, req.flows, req.explain)}
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from e
 
     return app
