@@ -8,8 +8,9 @@
 
 **Contribution in one sentence:** FEINT derives the attacker, adversarial training, a robust-feature
 model, a poison sanitiser and counterfactual explanations from *one declarative attacker-capability
-schema*, and measures over 5 seeds (95 % CIs), on four datasets plus a cross-dataset transfer, what
-each schema-derived defence buys against realisable adaptive evasion (evidence:
+schema*, measures over 5 seeds (95 % CIs) on four datasets plus a cross-dataset transfer what each
+derived defence buys against realisable evasion or poisoning, and isolates the schema's share with
+paired ablations for adversarial training and the sanitiser (evidence:
 [5-seed tables](#headline-results), [paired schema ablation](#schema-ablation-what-the-schema-buys),
 [paper vs reproduction vs FEINT](#reproductions-paper-vs-reproduction-vs-feint)).
 

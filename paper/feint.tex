@@ -36,8 +36,9 @@ attacks that ignore what a network attacker can change \cite{pierazzi2020}. Prio
 each piece separately: constrained adversarial examples for tabular and network data
 \cite{simonetto2022,vitorino2022}, robustness through conserved features \cite{tong2019}, and
 label sanitisation against poisoning \cite{paudice2018}. FEINT's contribution is to derive all of
-these from \emph{one} schema and to measure, with seeds and intervals, what each schema-derived
-defence buys. We make no claim of a new attack or defence algorithm.
+these from \emph{one} schema, to measure with seeds and intervals what each derived defence buys,
+and to isolate the schema's share with paired ablations for adversarial training and the
+sanitiser. We make no claim of a new attack or defence algorithm.
 
 \section{Threat model and schema}
 The attacker controls one side of a flow and knows the model (white-box), or can query it for
