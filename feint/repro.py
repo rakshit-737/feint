@@ -101,12 +101,13 @@ def sharafaldin2018(root=None, seed: int = 0, knn_max_train: int = 300_000, mode
             warnings.simplefilter("ignore")
             try:
                 clf.fit(Xf, yf)
-            except np.linalg.LinAlgError:
-                # QDA with reg_param=0 fails on rank-deficient class covariances (constant columns per
-                # class); retry with the smallest regulariser that fits and record the deviation.
-                clf.set_params(reg_param=1e-3)
-                clf.fit(Xf, yf)
-                note = "reg_param=0 failed (singular class covariance); refit with reg_param=1e-3"
+            except (np.linalg.LinAlgError, ValueError) as e:
+                # e.g. QDA: rank-deficient class covariances, and classes (Heartbleed, 8 training
+                # flows) with fewer samples than features. Record the failure instead of losing the
+                # other classifiers' results.
+                out["results"][name] = {"paper": dict(zip(("pr", "rc", "f1", "time_s"), SHARAFALDIN_T4[name])),
+                                        "ours": None, "note": f"failed to fit: {str(e)[:200]}"}
+                continue
             p = clf.predict(Xte)
         pr, rc, f1, _ = precision_recall_fscore_support(yte, p, average="weighted", zero_division=0)
         paper = SHARAFALDIN_T4[name]
@@ -169,8 +170,9 @@ def to_markdown(r: dict) -> str:
         L += ["| model | paper Pr / Rc / F1 | ours Pr / Rc / F1 | ours time (s) |", "|---|---|---|---|"]
         for k, v in r["results"].items():
             p, o = v["paper"], v["ours"]
-            L.append(f"| {k} | {p['pr']:.2f} / {p['rc']:.2f} / {p['f1']:.2f} | "
-                     f"{o['pr']:.3f} / {o['rc']:.3f} / {o['f1']:.3f} | {o['time_s']} |")
+            ours = (f"{o['pr']:.3f} / {o['rc']:.3f} / {o['f1']:.3f} | {o['time_s']}" if o
+                    else f"{v.get('note', 'failed')} | -")
+            L.append(f"| {k} | {p['pr']:.2f} / {p['rc']:.2f} / {p['f1']:.2f} | {ours} |")
     return "\n".join(L) + "\n"
 
 
