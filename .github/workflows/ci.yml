@@ -36,7 +36,7 @@ jobs:
           python -m feint run --quick --n 1500 --eps 0 1 --out smoke 2> err.txt
           ! grep -q UserWarning err.txt
       - name: dependency audit
-        run: pip install pip-audit && pip-audit --skip-editable
+        run: pip install -U pip setuptools pip-audit && pip-audit --skip-editable
   package:
     runs-on: ubuntu-latest
     timeout-minutes: 30

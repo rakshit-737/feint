@@ -24,7 +24,7 @@ concurrency:
   group: bench-${{ inputs.study || 'weekly' }}
   cancel-in-progress: false
 env:
-  FEINT_DATA: ${{ github.workspace }}/../data
+  FEINT_DATA: /home/runner/feint-data
 jobs:
   weekly-realdata:
     if: github.event_name == 'schedule'
