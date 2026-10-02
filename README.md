@@ -159,7 +159,7 @@ never committed; `tests/fixtures/` holds ~930 sampled rows for CI.
 ```bash
 git clone https://github.com/rakshit-737/feint && cd feint
 pip install -e ".[dev]"                 # numpy, pandas, scikit-learn, xgboost (+ matplotlib, fastapi for dev)
-python -m pytest -q                     # 27 tests; real-data tests skip without datasets
+python -m pytest -q                     # 33 tests; real-data tests skip without datasets
 python -m feint run --quick --n 3000 --out results/demo   # 1-minute synthetic smoke study
 ```
 
