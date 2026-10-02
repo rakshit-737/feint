@@ -26,8 +26,10 @@ from _fetch import fetch
 BASE = ("https://cse-cic-ids2018.s3.ca-central-1.amazonaws.com/"
         + urllib.parse.quote("Processed Traffic Data for ML Algorithms") + "/")
 FILES = {
-    "Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv": "acff8bc61376ee031d80878ee6099e0b1a87a1bd711d8068298421418c9f8147",
-    "Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv": "fa2947a8256d81ee9103ae16139d62d0e17aa23e696ee80d9e76fb51c01c9c4b",
+    "Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv":
+        "acff8bc61376ee031d80878ee6099e0b1a87a1bd711d8068298421418c9f8147",
+    "Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv":
+        "fa2947a8256d81ee9103ae16139d62d0e17aa23e696ee80d9e76fb51c01c9c4b",
     "Friday-16-02-2018_TrafficForML_CICFlowMeter.csv": None,
     "Thuesday-20-02-2018_TrafficForML_CICFlowMeter.csv": None,
     "Wednesday-21-02-2018_TrafficForML_CICFlowMeter.csv": None,
@@ -35,7 +37,8 @@ FILES = {
     "Friday-23-02-2018_TrafficForML_CICFlowMeter.csv": None,
     "Wednesday-28-02-2018_TrafficForML_CICFlowMeter.csv": None,
     "Thursday-01-03-2018_TrafficForML_CICFlowMeter.csv": None,
-    "Friday-02-03-2018_TrafficForML_CICFlowMeter.csv": "d96f38e7496aba83475031e6fb8c6fdf1abf6aa1b71325a917798f3c7de93de1",
+    "Friday-02-03-2018_TrafficForML_CICFlowMeter.csv":
+        "d96f38e7496aba83475031e6fb8c6fdf1abf6aa1b71325a917798f3c7de93de1",
 }
 DEFAULT_DAYS = ["Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv",
                 "Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv",
