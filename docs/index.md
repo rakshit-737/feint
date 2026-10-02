@@ -16,8 +16,9 @@ each schema-derived defence buys against realisable adaptive evasion.
 | FEINT ensemble + adversarial training | 0.793 [0.763, 0.823] | 0.962 [0.957, 0.968] |
 | XGBoost, robust features only (conditional on the schema) | 0.994 [0.993, 0.995] | 0.942 [0.935, 0.950] |
 
-Trained on corrected CIC-IDS2017 and tested on CSE-CIC-IDS2018, XGBoost scores F1 0.000 on the shared
-attack families: none of these detectors transfers across datasets.
+Trained on corrected CIC-IDS2017 and tested on CSE-CIC-IDS2018, plain XGBoost scores F1 0.000 on the
+shared attack families (it calls every flow benign); the robust-feature model reaches F1 0.51, mostly on
+SSH brute force.
 
 **Try it in 60 seconds:** `docker run --rm ghcr.io/rakshit-737/feint:latest run --quick --n 2000 --eps 0 1 --no-figures --out /tmp/demo`
 

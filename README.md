@@ -26,8 +26,9 @@ and reports **robustness curves and base-rate-honest precision** instead of one 
 > the ensemble back to 79 % (CIC-IDS2017) and 94-96 % (UNSW-NB15); MLP + adversarial training reaches
 > 69 % and 81 %. A model restricted to features the schema treats as attacker-immutable is untouched
 > by this attacker, at +2.2 FPR points on CIC-IDS2017 and +7.1 on UNSW-NB15 (F1 0.888 -> 0.850),
-> *conditional on that schema* (see Limitations). Detectors trained on CIC-IDS2017 do not transfer
-> to CSE-CIC-IDS2018 (XGBoost F1 0.000 on shared families).
+> *conditional on that schema* (see Limitations). Plain XGBoost trained on corrected CIC-IDS2017
+> detects nothing on CSE-CIC-IDS2018's shared families (F1 0.000 at FPR 0.000: it calls every flow
+> benign); the robust-feature model reaches F1 0.51, mostly on SSH brute force.
 
 [![FEINT results dashboard: detection rate vs attack budget for every model on CIC-IDS2017](docs/img/dashboard.png)](https://rakshit-737.github.io/feint/demo/)
 
@@ -102,9 +103,9 @@ What the numbers say:
    really are out of the attacker's reach (they are not entirely, see Limitations). On CIC-IDS2017
    the ensemble and XGBoost cannot be told apart at eps=2 (0.369 vs 0.405, CIs overlap), and the
    ensemble pays about 4x the FPR.
-4. **Base rates matter more than the leaderboard.** XGBoost's 99.7 % accuracy and 0.35 % FPR mean
-   only **22 % of its alerts are real at a 0.1 % attack prevalence**; on UNSW-NB15 (26 % FPR on the
-   official test split) that falls to 0.4 %.
+4. **Base rates matter more than the leaderboard.** XGBoost's 99.7 % accuracy and 0.40 % [0.36, 0.44]
+   FPR (5 seeds) mean only **20 % [19, 22] of its alerts are real at a 0.1 % attack prevalence**; on
+   UNSW-NB15 (26 % FPR on the official test split) that falls to 0.4 %.
 
 | study | CIC-IDS2017 | UNSW-NB15 |
 |---|---|---|

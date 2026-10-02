@@ -22,8 +22,9 @@ explanations. Over five seeds on CIC-IDS2017 and UNSW-NB15, undefended XGBoost k
 budget; adversarial training of an XGBoost/MLP/autoencoder ensemble restores 0.793 [0.763, 0.823]
 and 0.962 [0.957, 0.968]. A model restricted to the features the schema fixes is unaffected by this
 attacker, but only conditionally on that schema, which we show is partly defender-favourable. On
-label-corrected CIC-IDS2017 robustness numbers change materially, and detectors trained on
-CIC-IDS2017 do not transfer to CSE-CIC-IDS2018 (XGBoost F1 0.000 on shared attack families). We
+label-corrected CIC-IDS2017 robustness numbers change materially; plain XGBoost trained on corrected
+CIC-IDS2017 detects nothing on CSE-CIC-IDS2018's shared attack families (F1 0.000), while the
+robust-feature model reaches F1 0.51, mostly on SSH brute force. We
 report reproductions of two published baselines, negative results, and the limitations of the
 feature-space threat model.
 \end{abstract}
@@ -127,7 +128,9 @@ true labels at $\epsilon=2$ (single seed).
 
 \textbf{Reproductions.} A decision tree on the official UNSW-NB15 partition with all 42 features
 reaches 0.865 accuracy and 0.248 false-alarm rate versus the 0.856 and 0.158 reported for
-\cite{moustafa2016} (checked against secondary sources only). Our reproduction of the
+\cite{moustafa2016} (checked against secondary sources only: the primary article is paywalled, so
+we cannot confirm its table or its false-alarm definition, and the 0.09 gap in false-alarm rate is
+unexplained). Our reproduction of the
 \cite{sharafaldin2018} Table 4 setup (multi-class, union of the per-attack selected features,
 stratified 70/30 split with duplicates kept, scikit-learn defaults; split and settings assumed)
 gives weighted F1 0.999 for RF (paper 0.97), 0.995 KNN, 0.998 ID3, 0.888 AdaBoost, 0.981 MLP and
@@ -139,7 +142,8 @@ reproduction (A2PM \cite{vitorino2022}) was not completed.
 \section{Limitations}
 Feature-space only: no packets are rewritten and no flow extractor is re-run
 \cite{pierazzi2020}. The constrained and textbook attacks are not budget-matched. The alarm and
-counterfactual figures use a single budget and are optimistic. UNSW-NB15 derived features are
+counterfactual figures use a single budget, come from a single seed (seed 0), as do the
+model-stealing figures, and are optimistic. UNSW-NB15 derived features are
 recomputed with a convention that differs from the published columns. All robustness numbers are
 empirical upper bounds from our attacks.
 
