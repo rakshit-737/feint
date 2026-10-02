@@ -20,8 +20,16 @@ separately, the risks of **running FEINT itself**.
 - **Problem-space attacks** (rewriting pcaps and re-running CICFlowMeter). Constraints approximate
   this in feature space; cross-feature side effects (e.g. more packets also lengthen duration,
   more connections change `ct_*` counters) are not modelled, and the attack's own purpose (a DoS
-  needs its volume) is not enforced. Both simplifications favour the attacker.
-- **Model stealing**: the attacker is assumed to already have the model (strictly stronger).
+  needs its volume) is not enforced; that favours the attacker. Conversely the schema treats as
+  fixed several features a client can influence indirectly (`ct_*` via pacing or decoy
+  connections, `trans_depth` via pipelining, server-response `bwd_*` / `dbytes` and `syn_count` via
+  request choice and retransmissions); that favours the defender, and the robust-feature model's
+  result is conditional on it.
+- **Model stealing** is studied separately (`feint steal`): a label-only `/score` endpoint lets an
+  attacker train a surrogate whose transfer attack is as strong as one built from the true labels.
+- **The explanation endpoint is an evasion oracle.** `/score` with `explain=true` returns a
+  constraint-valid counterfactual, i.e. an evasion recipe, to any client. The API caps requests
+  (1-1000 flows, at most 20 explained) and binds to localhost; do not expose it.
 - **Certified robustness**: all robustness numbers are empirical upper bounds from our attacks.
 - **Clean-label poisoning** and poisoning of the unsupervised member are not studied.
 
@@ -29,10 +37,10 @@ separately, the risks of **running FEINT itself**.
 
 | Risk | Mitigation |
 | --- | --- |
-| Loading an untrusted CSV | Parsed with pandas into numeric arrays only; non-numeric / non-finite values dropped; no pickle or eval on inputs. |
+| Loading an untrusted CSV or Parquet file | Parsed with pandas / pyarrow (`data` extra, pyarrow>=14.0.1 for CVE-2023-47248) into numeric arrays only; non-numeric / non-finite values dropped; no pickle or eval on inputs. |
 | Loading a model bundle (`feint serve --model`) | Bundles are joblib pickles: **only load bundles you produced yourself**. |
 | Misuse as an evasion tool | Attacks operate on feature vectors against models trained locally on public datasets; no traffic is generated or sent, no exploit code, no malware. |
 | Overclaiming robustness | Curves across budgets, constrained and unconstrained, adaptive attacks against the defended system, precision at 1 % and 0.1 % prevalence, and explicit limitations in the README. |
 | API exposure | `feint serve` binds to 127.0.0.1 by default and has no authentication; it is a lab demo, not a production service. |
 
-All data is public (CIC-IDS2017, UNSW-NB15) or synthetic. No live network interaction.
+All data is public (CIC-IDS2017 original and corrected, UNSW-NB15, CSE-CIC-IDS2018, a CICIoT2023 re-export) or synthetic. No live network interaction.

@@ -31,8 +31,10 @@ realisable set, `is_valid()` checks it, every constrained attack projects after 
 and the tests assert 100 % validity.
 
 Derived features are *recomputed on load* for clean data too, so clean and adversarial flows
-obey the same equations (for UNSW-NB15 the recomputed values match the published columns to
-about 1e-6).
+obey the same equations. For UNSW-NB15 the recomputed values do **not** match all published
+columns: only `rate` agrees; `sload` differs on 99.9 % of rows (ratio about spkts/(spkts-1), a
+different convention), `dload` on 53 %, `sinpkt` on 33 %, `smean` / `dmean` on about a third (integer
+rounding, at most 1.3 %).
 
 ## Consequences
 
@@ -42,5 +44,7 @@ about 1e-6).
 - The model is an approximation. It ignores, for example, that adding packets also lengthens
   duration, that `ct_*` context counters depend on the attacker's connection rate, and that
   some attacks (DoS) *need* their volume, so padding may defeat the attack's purpose. These
-  are listed as limitations. The schema errs toward giving the attacker slightly *more* power.
+  are listed as limitations, and favour the attacker. In the other direction the schema fixes
+  features a client can influence indirectly (`ct_*`, `trans_depth`, server-response `bwd_*` /
+  `dbytes`, `syn_count`), which favours the defender; the net direction is not known.
 - New datasets need a new schema; attack and hardening code is schema-agnostic.
