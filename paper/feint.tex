@@ -122,6 +122,15 @@ robust-feature model (5 seeds); the reverse direction gives 0.015, 0.488 [0.078,
 \textbf{Negative result: CICIoT2023.} On the ipfixprobe re-export no model separates benign from
 attack captures (benign FPR 0.82--0.997); we do not report it as a detector.
 
+\textbf{Schema ablation.} Two paired ablations (5 seeds, shared split, poison set and evaluation
+attack) isolate what the schema buys. An MLP adversarially trained on schema-projected examples keeps
+0.676 (CIC) and 0.808 (UNSW) constrained detection at $\epsilon=2$; trained on textbook
+unconstrained examples at the same budget it keeps 0.031 and 0.080 (paired differences +0.645
+[+0.529, +0.762] and +0.728 [+0.665, +0.792]), with no FPR difference. The kNN sanitiser in
+robust-feature space leaves backdoor success at 0.083 (CIC) and 0.676 (UNSW); the same sanitiser on
+all features \cite{paudice2018} leaves 1.000 and 0.903 (differences $-0.917$ [$-0.976$, $-0.858$] and
+$-0.227$ [$-0.311$, $-0.144$]), at a cost of about one point of clean accuracy.
+
 \textbf{Stealing.} With 2{,}000 label queries a stolen surrogate agrees with the victim on 95.6\,\%
 (CIC) and 91.4\,\% (UNSW) of test flows and transfers at least as well as a surrogate trained on
 true labels at $\epsilon=2$ (single seed).
@@ -134,7 +143,7 @@ unexplained). Our reproduction of the
 \cite{sharafaldin2018} Table 4 setup (multi-class, union of the per-attack selected features,
 stratified 70/30 split with duplicates kept, scikit-learn defaults; split and settings assumed)
 gives weighted F1 0.999 for RF (paper 0.97), 0.995 KNN, 0.998 ID3, 0.888 AdaBoost, 0.981 MLP and
-0.141 naive Bayes; QDA could not be fitted (singular benign covariance). Every fitted model has a higher F1
+0.141 naive Bayes; QDA with defaults could not be fitted (singular benign covariance), and a regularised QDA (reg\_param $10^{-3}$, a deviation) gives 0.869 (paper 0.92). On corrected CIC-IDS2017 \cite{engelen2021} RF reaches 0.995. Every fitted model has a higher F1
 higher than published, which we attribute mainly to duplicate flows shared across a random split.
 An adversarial-NIDS
 reproduction (A2PM \cite{vitorino2022}) was not completed.

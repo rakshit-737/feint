@@ -10,7 +10,7 @@
 model, a poison sanitiser and counterfactual explanations from *one declarative attacker-capability
 schema*, and measures over 5 seeds (95 % CIs), on four datasets plus a cross-dataset transfer, what
 each schema-derived defence buys against realisable adaptive evasion (evidence:
-[5-seed tables](#headline-results), [ablation of constrained vs textbook attacks](#full-results),
+[5-seed tables](#headline-results), [paired schema ablation](#schema-ablation-what-the-schema-buys),
 [paper vs reproduction vs FEINT](#reproductions-paper-vs-reproduction-vs-feint)).
 
 **A network intrusion detector built to be attacked.** FEINT trains a flow-based NIDS ensemble on
@@ -290,18 +290,38 @@ every model reaches F1 0.98 only by flagging almost everything (benign FPR 0.82-
 [seeds.md](results/ciciot2023/seeds.md)). We report it as a failed transfer of the pipeline to
 IoT data, not as a detector.
 
+### Schema ablation: what the schema buys
+
+Two paired ablations (5 seeds; each seed shares split, preprocessor, poison set and evaluation
+attack between arms; difference = schema arm minus schema-agnostic arm, Student-t 95 % CI over the
+per-seed differences; [CIC](results/ablation/cicids2017/ablation.md),
+[UNSW](results/ablation/unsw_nb15/ablation.md)).
+
+| comparison | metric | CIC-IDS2017 | UNSW-NB15 |
+|---|---|---|---|
+| MLP adversarially trained on constrained vs unconstrained (textbook) examples, same budget | constrained detection at eps=2 | 0.676 vs 0.031, diff **+0.645 [+0.529, +0.762]** | 0.808 vs 0.080, diff **+0.728 [+0.665, +0.792]** |
+| ...same | clean FPR | 0.008 vs 0.007, diff +0.001 [-0.002, +0.003] | 0.276 vs 0.280, diff -0.004 [-0.017, +0.010] |
+| kNN poison sanitiser in robust-feature space vs all features (Paudice et al. 2018 style) | backdoor success after sanitising | 0.083 vs 1.000, diff **-0.917 [-0.976, -0.858]** | 0.676 vs 0.903, diff **-0.227 [-0.311, -0.144]** |
+| ...same | clean accuracy | 0.985 vs 0.996, diff -0.011 [-0.012, -0.010] | 0.840 vs 0.845, diff -0.006 [-0.007, -0.004] |
+
+At eps=2, training on textbook examples buys almost nothing against the realisable attacker, while
+schema-projected examples recover most of the detection at no FPR cost. The robust-feature
+restriction is what makes the sanitiser find the poison on CIC-IDS2017 (poison recall 0.99 vs
+0.09); on UNSW-NB15 it helps but leaves a 68 % backdoor. The sanitiser pays about one accuracy
+point for it. Both gains are conditional on the schema being right (see Limitations).
+
 ### Reproductions: paper vs reproduction vs FEINT
 
 | paper (setup) | metric | paper | our reproduction under the paper's setup | FEINT (own setup) |
 |---|---|---|---|---|
 | Moustafa & Slay 2016, decision tree, official UNSW-NB15 split, all 42 features ([json](results/repro/moustafa2016.json)) | accuracy / FAR | 0.8556 / 0.1578 (secondary source) | 0.8649 / 0.2484 | XGBoost, 22 features: 0.8655 / FPR 0.259 |
-| Sharafaldin et al. 2018 Table 4, RF on the union of the Table 3 per-attack selected features, weighted multi-class P/R/F1, split not reported | F1 | 0.97 | RF 0.999 (KNN 0.995, ID3 0.998, AdaBoost 0.888, MLP 0.981, NB 0.141; QDA could not be fitted) ([json](results/repro/sharafaldin2018.json)) | binary F1 0.994 on 11 de-duplicated schema features; not like-for-like |
+| Sharafaldin et al. 2018 Table 4, RF on the union of the Table 3 per-attack selected features, weighted multi-class P/R/F1, split not reported | F1 | 0.97 | RF 0.999 (KNN 0.995, ID3 0.998, AdaBoost 0.888, MLP 0.981, NB 0.141; QDA with defaults cannot be fitted, QDA with reg_param=1e-3 and the 3 classes with fewer rows than features dropped from training: 0.869) ([json](results/repro/sharafaldin2018.json)); on corrected CIC-IDS2017 (Engelen et al. 2021): RF 0.995, KNN 0.993, ID3 0.995, AdaBoost 0.954, MLP 0.994, NB 0.365 ([json](results/repro/sharafaldin2018_corrected.json)) | binary F1 0.994 on 11 de-duplicated schema features; not like-for-like |
 | Vitorino et al. 2022 (A2PM, adversarial NIDS) | | | not attempted this round (needs a numpy<2, Python 3.11 job) | |
 
 Accuracy reproduces within one point; our false-alarm rate is far above the quoted 15.78 %, which
 we could check only against secondary sources (the paper is paywalled).
 
-Our Sharafaldin reproduction (stratified 70/30 split, duplicates kept, scikit-learn defaults; split and hyperparameters are our assumptions) has a higher F1 than Table 4 for every classifier that fits: RF 0.999 vs 0.97, and AdaBoost/MLP about 0.89/0.98 vs 0.77/0.76. A random split with duplicates kept leaks near-identical flows into the test set, which is the most likely reason; QDA fails because the benign covariance matrix is singular on these features, so we report it as not reproduced.
+Our Sharafaldin reproduction (stratified 70/30 split, duplicates kept, scikit-learn defaults; split and hyperparameters are our assumptions) has a higher F1 than Table 4 for every classifier that fits: RF 0.999 vs 0.97, and AdaBoost/MLP about 0.89/0.98 vs 0.77/0.76. A random split with duplicates kept leaks near-identical flows into the test set, which is the most likely reason; QDA with defaults fails because the benign covariance matrix is singular on these features; a regularised QDA (a deviation, labelled as such) reaches 0.869 against the paper's 0.92, the only classifier below its published F1. On the corrected release the same setup gives the same picture (every fitted model above Table 4), so label noise does not explain the gap.
 
 ### Model stealing (label-only queries -> transfer attack), seed 0
 
