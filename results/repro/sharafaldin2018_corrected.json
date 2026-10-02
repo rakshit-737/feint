@@ -2,16 +2,17 @@
   "paper": "Sharafaldin, Habibi Lashkari & Ghorbani, ICISSP 2018, Table 4",
   "assumptions": [
     "union of the Table 3 per-label feature selections (23 features)",
-    "all 8 MachineLearningCVE CSVs, duplicates kept, rows with inf/NaN dropped",
+    "corrected CIC-IDS2017 (Engelen et al. 2021), 5 day files, '- Attempted' flows relabelled benign, duplicates kept, rows with inf/NaN dropped",
     "stratified 70/30 split (the paper does not report its split)",
     "scikit-learn defaults; ID3 = DecisionTree(criterion='entropy'); KNN and MLP on standardised features (not stated in the paper)",
     "KNN trained on a stratified subsample of at most 300000 flows (runtime)",
-    "weighted multi-class precision / recall / F1 over the 15 labels",
+    "weighted multi-class precision / recall / F1 over the 16 labels",
     "'QDA (reg_param=1e-3)' deviates from the defaults (covariance regulariser); the default fit is reported as well"
   ],
-  "rows_raw": 2830743,
-  "rows_used": 2830743,
-  "n_test": 849223,
+  "corrected": true,
+  "rows_raw": 2099971,
+  "rows_used": 2099971,
+  "n_test": 629992,
   "results": {
     "KNN": {
       "paper": {
@@ -21,10 +22,10 @@
         "time_s": 1908.23
       },
       "ours": {
-        "pr": 0.9952486161608216,
-        "rc": 0.995306297639136,
-        "f1": 0.9952507167968146,
-        "time_s": 463.4
+        "pr": 0.9934315575437547,
+        "rc": 0.9934824569200879,
+        "f1": 0.993418176251911,
+        "time_s": 344.4
       }
     },
     "RF": {
@@ -35,10 +36,10 @@
         "time_s": 74.39
       },
       "ours": {
-        "pr": 0.9984997333973016,
-        "rc": 0.9985304213380938,
-        "f1": 0.9985042444108053,
-        "time_s": 194.7
+        "pr": 0.9949228357427691,
+        "rc": 0.9949443802460983,
+        "f1": 0.9949172079805155,
+        "time_s": 163.6
       }
     },
     "ID3": {
@@ -49,10 +50,10 @@
         "time_s": 235.02
       },
       "ours": {
-        "pr": 0.9984663241741731,
-        "rc": 0.9984703664408524,
-        "f1": 0.998467083634904,
-        "time_s": 49.8
+        "pr": 0.994852741064007,
+        "rc": 0.994871363445885,
+        "f1": 0.9948498650956736,
+        "time_s": 34.3
       }
     },
     "Adaboost": {
@@ -63,10 +64,10 @@
         "time_s": 1126.24
       },
       "ours": {
-        "pr": 0.8951205605173322,
-        "rc": 0.904471499241071,
-        "f1": 0.8878929409928369,
-        "time_s": 682.5
+        "pr": 0.9494402411812998,
+        "rc": 0.9600328258136611,
+        "f1": 0.9538456892829772,
+        "time_s": 486.2
       }
     },
     "MLP": {
@@ -77,10 +78,10 @@
         "time_s": 575.73
       },
       "ours": {
-        "pr": 0.9823222577483636,
-        "rc": 0.9817421336916217,
-        "f1": 0.9813174232956227,
-        "time_s": 1224.0
+        "pr": 0.9944506101370195,
+        "rc": 0.9944792949751743,
+        "f1": 0.9944584114296952,
+        "time_s": 145.7
       }
     },
     "Naive-Bayes": {
@@ -91,10 +92,10 @@
         "time_s": 14.77
       },
       "ours": {
-        "pr": 0.8657359625445423,
-        "rc": 0.10595921212685007,
-        "f1": 0.14080491996744843,
-        "time_s": 13.4
+        "pr": 0.8660335478387626,
+        "rc": 0.32145646293921193,
+        "f1": 0.36526241187825725,
+        "time_s": 9.8
       }
     },
     "QDA": {
@@ -105,7 +106,7 @@
         "time_s": 18.79
       },
       "ours": null,
-      "note": "failed to fit: The covariance matrix of class BENIGN is not full rank. Increase the value of `reg_param` to reduce the collinearity."
+      "note": "failed to fit: The covariance matrix of class Botnet is not full rank. Increase the value of `reg_param` to reduce the collinearity."
     },
     "QDA (reg_param=1e-3)": {
       "paper": {
@@ -114,13 +115,8 @@
         "f1": 0.92,
         "time_s": 18.79
       },
-      "ours": {
-        "pr": 0.9396733731478126,
-        "rc": 0.8339093500764817,
-        "f1": 0.8691325477681455,
-        "time_s": 18.2
-      },
-      "note": "deviation: reg_param=1e-3; classes dropped from training: ['Heartbleed', 'Web Attack \u00ef\u00bf\u00bd Sql Injection']"
+      "ours": null,
+      "note": "failed to fit: The covariance matrix of class Heartbleed is not full rank. When using `solver='svd'` the number of samples in each class should be more than the number of features, but class Heartbleed has 8 samples"
     }
   },
   "environment": {
@@ -131,10 +127,6 @@
     "pandas": "3.0.6",
     "scikit-learn": "1.9.1",
     "xgboost": "3.4.1",
-    "git_commit": "f9f8facf57302ff81aa9174d856a74c50c5a202f"
-  },
-  "qda_regularised_run": {
-    "git_commit": "362b3bb513e486e18b1f7259514fcf3f629b103e",
-    "note": "added from a separate bench run (--models QDA \"QDA (reg_param=1e-3)\")"
+    "git_commit": "67d1a90e8a7a64ce86c05be6456f10451b66a243"
   }
 }

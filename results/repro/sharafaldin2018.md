@@ -8,6 +8,7 @@ Assumptions:
 - scikit-learn defaults; ID3 = DecisionTree(criterion='entropy'); KNN and MLP on standardised features (not stated in the paper)
 - KNN trained on a stratified subsample of at most 300000 flows (runtime)
 - weighted multi-class precision / recall / F1 over the 15 labels
+- 'QDA (reg_param=1e-3)' deviates from the defaults (covariance regulariser); the default fit is reported as well
 
 | model | paper Pr / Rc / F1 | ours Pr / Rc / F1 | ours time (s) |
 |---|---|---|---|
@@ -18,3 +19,4 @@ Assumptions:
 | MLP | 0.77 / 0.83 / 0.76 | 0.982 / 0.982 / 0.981 | 1224.0 |
 | Naive-Bayes | 0.88 / 0.04 / 0.04 | 0.866 / 0.106 / 0.141 | 13.4 |
 | QDA | 0.97 / 0.88 / 0.92 | failed to fit: The covariance matrix of class BENIGN is not full rank. Increase the value of `reg_param` to reduce the collinearity. | - |
+| QDA (reg_param=1e-3) | 0.97 / 0.88 / 0.92 | 0.940 / 0.834 / 0.869 | 18.2 |
