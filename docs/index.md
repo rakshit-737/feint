@@ -7,7 +7,7 @@ each schema-derived defence buys against realisable adaptive evasion.
 
 [Results dashboard](demo/index.html){ .md-button .md-button--primary } [Evaluation](evaluation.md){ .md-button } [Reproduce](reproduce.md){ .md-button }
 
-![CIC-IDS2017 robustness curves](assets/cicids2017/robustness_curves.png)
+[![FEINT results dashboard: detection rate vs attack budget for every model, CIC-IDS2017](img/dashboard.png)](demo/index.html)
 
 | constrained detection at eps=2 (5 seeds, mean [95 % CI]) | CIC-IDS2017 | UNSW-NB15 |
 |---|---|---|

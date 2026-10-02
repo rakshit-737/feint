@@ -29,6 +29,8 @@ and reports **robustness curves and base-rate-honest precision** instead of one 
 > *conditional on that schema* (see Limitations). Detectors trained on CIC-IDS2017 do not transfer
 > to CSE-CIC-IDS2018 (XGBoost F1 0.000 on shared families).
 
+[![FEINT results dashboard: detection rate vs attack budget for every model on CIC-IDS2017](docs/img/dashboard.png)](https://rakshit-737.github.io/feint/demo/)
+
 **Docs:** https://rakshit-737.github.io/feint/ · **Dashboard:** https://rakshit-737.github.io/feint/demo/ ·
 **Preprint draft:** [paper/feint.tex](paper/feint.tex)
 
