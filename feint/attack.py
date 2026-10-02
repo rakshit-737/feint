@@ -104,23 +104,34 @@ def adaptive(det, X, schema: Schema, eps=0.5, constrained=True, surrogate=None, 
     """Strongest attack we have against ``det``.
 
     * differentiable detector: white-box PGD, then black-box search seeded from it
-    * otherwise: PGD against ``surrogate`` (transfer), then black-box search seeded from it
+    * otherwise: PGD against ``surrogate`` (transfer), then black-box search seeded from it.
+      ``surrogate`` may be a list (e.g. the undefended *and* the adversarially trained MLP, so a
+      hardened ensemble is attacked through its own hardened member); every surrogate seeds its
+      own candidate.
     Returns the per-flow best (lowest malicious score) of the candidates.
     """
     X = np.asarray(X, dtype=float)
     if eps <= 0 or len(X) == 0:
         return X.copy()
+    if getattr(det, "differentiable", False):
+        grad_models = [det]
+    elif isinstance(surrogate, (list, tuple)):
+        grad_models = [s for s in surrogate if s is not None]
+    else:
+        grad_models = [surrogate] if surrogate is not None else []
     cands = []
-    grad_model = det if getattr(det, "differentiable", False) else surrogate
-    if grad_model is not None:
-        cands.append(pgd(grad_model, X, schema, eps=eps, steps=steps, constrained=constrained))
-    start = cands[0] if cands else None
-    if start is not None and not constrained:
-        # keep the transfer start inside the target's own eps-ball
-        Z0 = det.pre.transform(X)
-        start = det.pre.inverse(Z0 + np.clip(det.pre.transform(start) - Z0, -eps, eps))
-    cands.append(random_search(det, X, schema, eps=eps, iters=iters, constrained=constrained,
-                               seed=seed, X_start=start))
+    starts = []
+    for gm in grad_models:
+        c = pgd(gm, X, schema, eps=eps, steps=steps, constrained=constrained)
+        cands.append(c)
+        if not constrained:
+            # keep the transfer start inside the target's own eps-ball
+            Z0 = det.pre.transform(X)
+            c = det.pre.inverse(Z0 + np.clip(det.pre.transform(c) - Z0, -eps, eps))
+        starts.append(c)
+    for i, start in enumerate(starts or [None]):
+        cands.append(random_search(det, X, schema, eps=eps, iters=iters, constrained=constrained,
+                                   seed=seed + i, X_start=start))
     P = np.stack([det.predict_proba(c) for c in cands])
     best = P.argmin(0)
     return np.stack(cands)[best, np.arange(len(X))]

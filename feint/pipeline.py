@@ -27,6 +27,7 @@ from .model import (
 from .poison import backdoor_study
 from .schema import Schema
 
+HARDENED = ("xgboost_adv_trained", "ensemble_adv_trained")
 DEFAULT_EPS = [0.0, 0.25, 0.5, 1.0, 1.5, 2.0]
 
 
@@ -167,6 +168,10 @@ def run_study(ds: Dataset | None = None, cfg: StudyConfig | None = None, return_
     models.update({"mlp_adv_trained": mlp_adv, "xgboost_adv_trained": xgb_adv,
                    "ensemble_adv_trained": ens_adv, "xgboost_robust_features": xgb_rob})
 
+    def atk_hard(det, X, eps, constrained=True):
+        return adaptive(det, X, schema, eps=eps, constrained=constrained, surrogate=[mlp, mlp_adv],
+                        steps=cfg.steps, iters=cfg.iters, seed=cfg.seed)
+
     # ------------------------------------------------------------------ 3. clean metrics
     for name, m in models.items():
         report["models"][name] = detection_metrics(m, Xte, yte)
@@ -184,8 +189,16 @@ def run_study(ds: Dataset | None = None, cfg: StudyConfig | None = None, return_
     with T("robustness_curves"):
         for name in curve_models:
             m = models[name]
-            r = {"constrained": robustness_curve(m, X_mal, cfg.eps, schema,
-                                                 lambda d, X, e: atk(d, X, e, True))}
+            if name in HARDENED:
+                # adaptive: gradients from the undefended AND the hardened MLP (per-flow best);
+                # the transfer-from-undefended-MLP curve is kept as an ablation
+                r = {"constrained": robustness_curve(m, X_mal, cfg.eps, schema,
+                                                     lambda d, X, e: atk_hard(d, X, e)),
+                     "constrained_transfer_only": robustness_curve(
+                         m, X_mal, cfg.eps, schema, lambda d, X, e: atk(d, X, e, True))}
+            else:
+                r = {"constrained": robustness_curve(m, X_mal, cfg.eps, schema,
+                                                     lambda d, X, e: atk(d, X, e, True))}
             if name in ("mlp", "xgboost", "ensemble"):
                 r["unconstrained"] = robustness_curve(m, X_mal, cfg.eps, schema,
                                                       lambda d, X, e: atk(d, X, e, False))
@@ -326,11 +339,32 @@ def detection_metrics_from_pred(p, y):
 
 
 # ---------------------------------------------------------------------------- persistence
+def environment() -> dict:
+    """Versions and commit that produced a result file (written into every JSON)."""
+    import platform
+    import subprocess
+
+    import pandas
+    import sklearn
+    import xgboost
+
+    from . import __version__
+    try:
+        commit = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
+                                timeout=5).stdout.strip() or None
+    except Exception:  # noqa: BLE001 - not a git checkout
+        commit = None
+    return {"feint": __version__, "python": platform.python_version(), "platform": platform.platform(),
+            "numpy": np.__version__, "pandas": pandas.__version__, "scikit-learn": sklearn.__version__,
+            "xgboost": xgboost.__version__, "git_commit": commit}
+
+
 def save(report, out_dir: str | Path, figures: bool = True):
     from .report import to_markdown, write_figures
 
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
+    report.setdefault("environment", environment())
     (out / "report.json").write_text(json.dumps(report, indent=2, default=float))
     (out / "report.md").write_text(to_markdown(report), encoding="utf-8")
     if figures:
