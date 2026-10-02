@@ -19,7 +19,14 @@ from .schema import Schema
 
 
 def pick_trigger(schema: Schema, X_train) -> tuple[str, float]:
-    """First free (range-controllable) feature and an integer value unseen in training."""
+    """First free (range-controllable) feature and an integer value unseen in training.
+
+    Schemas without a free feature (CICIoT2023) use the first increase-only feature set to a value
+    above every training value, which stays realisable for every flow.
+    """
+    if not schema.free:
+        f = schema.up[0]
+        return f, float(np.ceil(X_train[:, schema.idx[f]].max()) + 7.0)
     f = next(iter(schema.free))
     lo, hi = schema.free[f]
     seen = set(np.round(X_train[:, schema.idx[f]]).astype(int).tolist())
