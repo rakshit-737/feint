@@ -146,8 +146,16 @@ def sharafaldin2018(root=None, seed: int = 0, knn_max_train: int = 300_000, mode
         Xf, yf = Xtr, ytr
         if name == "KNN" and len(ytr) > knn_max_train:
             Xf, _, yf, _ = train_test_split(Xtr, ytr, train_size=knn_max_train, random_state=seed, stratify=ytr)
-        t = time.time()
         note = None
+        if name.startswith("QDA ("):
+            # QDA needs more training rows than features in every class: drop the classes that
+            # have fewer (e.g. Heartbleed) from training only; they still count, as errors, in test
+            labs, cnt = np.unique(yf, return_counts=True)
+            keep = np.isin(yf, labs[cnt > Xf.shape[1]])
+            dropped = sorted(map(str, labs[cnt <= Xf.shape[1]]))
+            Xf, yf = Xf[keep], yf[keep]
+            note = f"deviation: reg_param=1e-3; classes dropped from training: {dropped}"
+        t = time.time()
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             try:
