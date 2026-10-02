@@ -1,0 +1,175 @@
+"""Reproductions of published results under (as close as possible to) the papers' own setups.
+
+Each function returns a dict with the paper's number, our reproduction and every assumption we had
+to make because the paper does not state it. Nothing here touches the FEINT feature schema: the
+point is to check that our data and tooling reproduce the literature before FEINT departs from it.
+
+* Sharafaldin, Habibi Lashkari & Ghorbani, ICISSP 2018 (CIC-IDS2017), Table 4: seven classifiers on
+  the per-attack features selected in Table 3 (union), weighted multi-class P / R / F1.
+* Moustafa & Slay 2016 (UNSW-NB15): classic classifiers on the official training / testing partition
+  with the published feature columns, accuracy and false-alarm rate.
+"""
+from __future__ import annotations
+
+import json
+import time
+from pathlib import Path
+
+import numpy as np
+
+from .data import data_root
+
+# Table 3 of Sharafaldin et al. 2018 (best 4 features per label, RandomForestRegressor), mapped to
+# MachineLearningCVE header names. "B.Packet Len Std" listed twice for DoS Hulk is kept once.
+SHARAFALDIN_T3 = [
+    "Bwd Packet Length Min", "Subflow Fwd Bytes", "Total Length of Fwd Packets", "Fwd Packet Length Mean",
+    "Bwd Packet Length Std", "Flow IAT Min", "Fwd IAT Min", "Flow IAT Mean", "Flow Duration",
+    "Flow IAT Std", "Active Min", "Active Mean", "Bwd IAT Mean", "Fwd IAT Mean", "Init_Win_bytes_forward",
+    "ACK Flag Count", "Fwd PSH Flags", "SYN Flag Count", "Fwd Packets/s", "Init_Win_bytes_backward",
+    "Bwd Packets/s", "PSH Flag Count", "Average Packet Size",
+]
+SHARAFALDIN_T4 = {  # weighted Pr, Rc, F1 and execution time (s), verbatim from Table 4
+    "KNN": (0.96, 0.96, 0.96, 1908.23), "RF": (0.98, 0.97, 0.97, 74.39), "ID3": (0.98, 0.98, 0.98, 235.02),
+    "Adaboost": (0.77, 0.84, 0.77, 1126.24), "MLP": (0.77, 0.83, 0.76, 575.73),
+    "Naive-Bayes": (0.88, 0.04, 0.04, 14.77), "QDA": (0.97, 0.88, 0.92, 18.79),
+}
+
+
+def _classifiers(seed: int):
+    from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
+    from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
+    from sklearn.naive_bayes import GaussianNB
+    from sklearn.neighbors import KNeighborsClassifier
+    from sklearn.neural_network import MLPClassifier
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.tree import DecisionTreeClassifier
+
+    return {
+        "KNN": make_pipeline(StandardScaler(), KNeighborsClassifier(n_jobs=-1)),
+        "RF": RandomForestClassifier(random_state=seed, n_jobs=-1),
+        "ID3": DecisionTreeClassifier(criterion="entropy", random_state=seed),
+        "Adaboost": AdaBoostClassifier(random_state=seed),
+        "MLP": make_pipeline(StandardScaler(), MLPClassifier(random_state=seed, max_iter=200)),
+        "Naive-Bayes": GaussianNB(),
+        "QDA": QuadraticDiscriminantAnalysis(reg_param=0.0),
+    }
+
+
+def sharafaldin2018(root=None, seed: int = 0, knn_max_train: int = 300_000, models=None) -> dict:
+    """Multi-class reproduction of Table 4 on the original MachineLearningCVE CSVs (duplicates kept)."""
+    import warnings
+
+    import pandas as pd
+    from sklearn.metrics import precision_recall_fscore_support
+    from sklearn.model_selection import train_test_split
+
+    root = Path(root) if root else data_root() / "cicids2017"
+    files = sorted(root.rglob("*pcap_ISCX.csv"))
+    if not files:
+        raise FileNotFoundError(f"no CIC-IDS2017 CSVs under {root}")
+    frames = []
+    for f in files:
+        df = pd.read_csv(f, encoding="latin-1", low_memory=False)
+        df.columns = [c.strip() for c in df.columns]
+        frames.append(df[SHARAFALDIN_T3 + ["Label"]])
+    df = pd.concat(frames, ignore_index=True)
+    n_raw = len(df)
+    X = df[SHARAFALDIN_T3].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=np.float64)
+    ok = np.isfinite(X).all(1)
+    X, y = X[ok], df["Label"].astype(str).str.strip().to_numpy()[ok]
+    Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.3, random_state=seed, stratify=y)
+    out = {"paper": "Sharafaldin, Habibi Lashkari & Ghorbani, ICISSP 2018, Table 4",
+           "assumptions": [
+               "union of the Table 3 per-label feature selections (23 features)",
+               "all 8 MachineLearningCVE CSVs, duplicates kept, rows with inf/NaN dropped",
+               "stratified 70/30 split (the paper does not report its split)",
+               "scikit-learn defaults; ID3 = DecisionTree(criterion='entropy'); KNN and MLP on standardised"
+               " features (not stated in the paper)",
+               f"KNN trained on a stratified subsample of at most {knn_max_train} flows (runtime)",
+               "weighted multi-class precision / recall / F1 over the 15 labels"],
+           "rows_raw": int(n_raw), "rows_used": int(len(y)), "n_test": int(len(yte)), "results": {}}
+    for name, clf in _classifiers(seed).items():
+        if models and name not in models:
+            continue
+        Xf, yf = Xtr, ytr
+        if name == "KNN" and len(ytr) > knn_max_train:
+            Xf, _, yf, _ = train_test_split(Xtr, ytr, train_size=knn_max_train, random_state=seed, stratify=ytr)
+        t = time.time()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            clf.fit(Xf, yf)
+            p = clf.predict(Xte)
+        pr, rc, f1, _ = precision_recall_fscore_support(yte, p, average="weighted", zero_division=0)
+        paper = SHARAFALDIN_T4[name]
+        out["results"][name] = {"paper": {"pr": paper[0], "rc": paper[1], "f1": paper[2], "time_s": paper[3]},
+                                "ours": {"pr": float(pr), "rc": float(rc), "f1": float(f1),
+                                         "time_s": round(time.time() - t, 1)}}
+    return out
+
+
+def moustafa_slay2016(root=None, seed: int = 0) -> dict:
+    """Classic classifiers on the official UNSW-NB15 partition (binary label), all published columns."""
+    import warnings
+
+    import pandas as pd
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.naive_bayes import GaussianNB
+    from sklearn.neural_network import MLPClassifier
+    from sklearn.pipeline import make_pipeline
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.tree import DecisionTreeClassifier
+
+    root = Path(root) if root else data_root() / "unsw-nb15"
+    tr = pd.read_csv(root / "UNSW_NB15_training-set.csv")
+    te = pd.read_csv(root / "UNSW_NB15_testing-set.csv")
+    drop = ["id", "attack_cat", "label"]
+    both = pd.get_dummies(pd.concat([tr.drop(columns=drop), te.drop(columns=drop)]),
+                          columns=["proto", "service", "state"], dtype=float)
+    Xtr, Xte = both.iloc[:len(tr)].to_numpy(float), both.iloc[len(tr):].to_numpy(float)
+    ytr, yte = tr["label"].to_numpy(), te["label"].to_numpy()
+    clfs = {"DT": DecisionTreeClassifier(random_state=seed),
+            "LR": make_pipeline(StandardScaler(), LogisticRegression(max_iter=2000)),
+            "NB": GaussianNB(),
+            "ANN": make_pipeline(StandardScaler(), MLPClassifier(random_state=seed, max_iter=200))}
+    out = {"paper": "Moustafa & Slay 2016, Inf. Secur. J. 25(1-3); DT accuracy 85.56 %, FAR 15.78 % "
+                    "(secondary sources; the paper is paywalled)",
+           "paper_dt": {"accuracy": 0.8556, "far": 0.1578},
+           "assumptions": ["official training (175,341) / testing (82,332) partition, binary label",
+                           "all 42 published feature columns; proto / service / state one-hot",
+                           "scikit-learn defaults (the paper used other tooling)"],
+           "results": {}}
+    for name, clf in clfs.items():
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            p = clf.fit(Xtr, ytr).predict(Xte)
+        fp = int(((p == 1) & (yte == 0)).sum())
+        out["results"][name] = {"accuracy": float((p == yte).mean()),
+                                "far": fp / max(int((yte == 0).sum()), 1)}
+    return out
+
+
+def to_markdown(r: dict) -> str:
+    L = [f"# Reproduction: {r['paper']}", "", "Assumptions:", ""] + [f"- {a}" for a in r["assumptions"]] + [""]
+    if "paper_dt" in r:
+        L += ["| model | accuracy | FAR |", "|---|---|---|",
+              f"| DT (paper) | {r['paper_dt']['accuracy']:.4f} | {r['paper_dt']['far']:.4f} |"]
+        L += [f"| {k} (ours) | {v['accuracy']:.4f} | {v['far']:.4f} |" for k, v in r["results"].items()]
+    else:
+        L += ["| model | paper Pr / Rc / F1 | ours Pr / Rc / F1 | ours time (s) |", "|---|---|---|---|"]
+        for k, v in r["results"].items():
+            p, o = v["paper"], v["ours"]
+            L.append(f"| {k} | {p['pr']:.2f} / {p['rc']:.2f} / {p['f1']:.2f} | "
+                     f"{o['pr']:.3f} / {o['rc']:.3f} / {o['f1']:.3f} | {o['time_s']} |")
+    return "\n".join(L) + "\n"
+
+
+def save(r: dict, out_dir, name: str) -> Path:
+    from .pipeline import environment
+
+    out = Path(out_dir)
+    out.mkdir(parents=True, exist_ok=True)
+    r = {**r, "environment": environment()}
+    (out / f"{name}.json").write_text(json.dumps(r, indent=2))
+    (out / f"{name}.md").write_text(to_markdown(r), encoding="utf-8")
+    return out

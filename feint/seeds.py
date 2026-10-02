@@ -117,18 +117,24 @@ def seed_study(ds: Dataset, seeds=(0, 1, 2), cfg: StudyConfig | None = None, adv
                 factory, tr.X[pi], tr.y[pi], te.X, te.y, ds.schema, rate=c.poison_rate, seed=c.seed,
                 robust_cols=robust_feature_indices(ds.schema))
 
+    return aggregate({"dataset": ds.info.get("name"), "seeds": list(map(int, seeds)), "eps": list(cfg.eps),
+                      "adv": adv, "poison": poison, "environment": environment(), "per_seed": per_seed})
+
+
+def aggregate(r: dict) -> dict:
+    """(Re)compute mean / 95 % CI aggregates from ``r['per_seed']`` (used to merge CI jobs)."""
+    per_seed = r["per_seed"]
     names = list(next(iter(per_seed.values()))["models"])
     agg = {}
     for name in names:
         runs = [per_seed[s]["models"][name] for s in per_seed]
         agg[name] = {"f1": mean_ci([r["f1"] for r in runs]), "fpr": mean_ci([r["fpr"] for r in runs]),
                      "detection": {e: mean_ci([r["detection"][e] for r in runs]) for e in runs[0]["detection"]}}
-    out = {"dataset": ds.info.get("name"), "seeds": list(map(int, seeds)), "eps": list(cfg.eps),
-           "adv": adv, "poison": poison, "environment": environment(),
+    out = {**r, "seeds": sorted(int(s) for s in per_seed),
            "ci_note": "Student-t 95 % CI across seeds (t quantile for n-1 df), clipped to [0, 1]",
-           "per_seed": per_seed, "aggregate": agg}
-    if poison:
-        P = [per_seed[s]["poisoning"] for s in per_seed]
+           "aggregate": agg}
+    P = [per_seed[s]["poisoning"] for s in per_seed if "poisoning" in per_seed[s]]
+    if P and len(P) == len(per_seed):
         pa = {}
         for tag in ("clean_model", "poisoned_model", "sanitized_model"):
             if all(tag in p for p in P):
@@ -138,6 +144,13 @@ def seed_study(ds: Dataset, seeds=(0, 1, 2), cfg: StudyConfig | None = None, adv
                                for k in ("poison_recall", "precision", "clean_benign_removed_frac")}
         out["poisoning_aggregate"] = pa
     return out
+
+
+def merge(paths) -> dict:
+    """Merge several single-seed ``seeds.json`` files (e.g. one per CI job) into one study."""
+    rs = [json.loads(Path(p).read_text()) for p in paths]
+    per_seed = {k: v for r in rs for k, v in r["per_seed"].items()}
+    return aggregate({**rs[0], "per_seed": per_seed})
 
 
 def to_markdown(r: dict) -> str:

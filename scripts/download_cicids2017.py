@@ -3,7 +3,7 @@
 Source of truth: Canadian Institute for Cybersecurity, University of New Brunswick
 (https://www.unb.ca/cic/datasets/ids-2017.html). UNB now gates direct downloads behind a
 form, so by default we fetch a ``MachineLearningCSV.zip`` mirror on the
-Hugging Face Hub and verify its SHA-256. ~235 MB zipped, ~1.1 GB extracted, 2,830,743 flows.
+Hugging Face Hub and verify its SHA-256. ~235 MB zipped, 885 MB extracted, 2,830,743 flows.
 
 Usage:  python scripts/download_cicids2017.py [--dest D:/cyber-portfolio/datasets/feint/cicids2017]
 """
@@ -18,7 +18,7 @@ from _fetch import fetch
 
 URL = "https://huggingface.co/datasets/bencorn/CICIDS2017/resolve/main/csvs/MachineLearningCSV.zip"
 SHA256 = "c3f26274b36c837ccf28ffd2dbf4582941c30b3ee70a635c6e5b2f87c4727928"
-DEFAULT = Path(os.environ.get("FEINT_DATA", Path(__file__).resolve().parents[1] / "data")) / "cicids2017"
+DEFAULT = Path(os.environ.get("FEINT_DATA") or Path.cwd() / "data") / "cicids2017"
 
 
 def main() -> None:

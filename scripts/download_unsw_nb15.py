@@ -23,7 +23,7 @@ FILES = {
     "UNSW_NB15_training-set.csv": ("test.csv", "bec7dd5ec88dc2a0ccc7a07879d338395ed7421750f675fd0339e07dfe0648fa"),
     "UNSW_NB15_testing-set.csv": ("train.csv", "734fe6642edf758f7c94d7d9149426b49d202fe8e7bf0bef47392489c3c0a559"),
 }
-DEFAULT = Path(os.environ.get("FEINT_DATA", Path(__file__).resolve().parents[1] / "data")) / "unsw-nb15"
+DEFAULT = Path(os.environ.get("FEINT_DATA") or Path.cwd() / "data") / "unsw-nb15"
 
 
 def main() -> None:

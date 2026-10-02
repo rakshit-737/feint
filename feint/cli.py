@@ -113,6 +113,14 @@ def main(argv=None):
     xd.add_argument("--quick", action="store_true", help="tiny models and budgets (smoke test)")
     xd.add_argument("--out", default="results/xdata", help="output directory")
 
+    rp = sub.add_parser("repro", help="reproduce a published result under the paper's own setup",
+                        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    rp.add_argument("--paper", choices=["sharafaldin2018", "moustafa2016"], required=True)
+    rp.add_argument("--data-dir", default=None, help="dataset directory")
+    rp.add_argument("--seed", type=int, default=0, help="split / model seed")
+    rp.add_argument("--models", nargs="*", default=None, help="subset of classifiers (default: all)")
+    rp.add_argument("--out", default="results/repro", help="output directory")
+
     st = sub.add_parser("steal", help="model-stealing study (label-only queries -> transfer attack)")
     st.add_argument("--data", default="synthetic")
     st.add_argument("--data-dir", default=None)
@@ -168,6 +176,17 @@ def main(argv=None):
         (out / "steal.json").write_text(_json.dumps(r, indent=2))
         (out / "steal.md").write_text(ST.to_markdown(r), encoding="utf-8")
         print(ST.to_markdown(r))
+        return 0
+
+    if a.cmd == "repro":
+        from . import repro as RP
+
+        if a.paper == "sharafaldin2018":
+            r = RP.sharafaldin2018(a.data_dir, seed=a.seed, models=a.models)
+        else:
+            r = RP.moustafa_slay2016(a.data_dir, seed=a.seed)
+        RP.save(r, a.out, a.paper)
+        print(RP.to_markdown(r))
         return 0
 
     if a.cmd == "xdata":

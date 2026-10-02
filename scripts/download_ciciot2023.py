@@ -89,7 +89,7 @@ FILES = [
     ("XSS__XSS.parquet",
      "80dacb710e501f304d1d429489c39b7e627cb01fb35c79110167d2164c49461a"),
 ]
-DEFAULT = Path(os.environ.get("FEINT_DATA", Path(__file__).resolve().parents[1] / "data")) / "ciciot2023"
+DEFAULT = Path(os.environ.get("FEINT_DATA") or Path.cwd() / "data") / "ciciot2023"
 
 
 def main() -> None:

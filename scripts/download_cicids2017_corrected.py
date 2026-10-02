@@ -27,7 +27,7 @@ FILES = {
     "thursday.csv": "e3cac669f495df33da7ae1e8fcc06ed511d3161b97a7ba9263f2d476cf467a0e",
     "friday.csv": "e16fa2655766ed685fe3e43455d7e4024a81f8a1965c1eabf56e53dc9f07fb6b",
 }
-DEFAULT = Path(os.environ.get("FEINT_DATA", Path(__file__).resolve().parents[1] / "data")) / "cicids2017-corrected"
+DEFAULT = Path(os.environ.get("FEINT_DATA") or Path.cwd() / "data") / "cicids2017-corrected"
 
 
 def main() -> None:

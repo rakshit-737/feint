@@ -1,0 +1,150 @@
+name: bench
+# Heavy, full-data studies (FEINT is a memory-heavy project: these never run on the shared laptop).
+# Results are uploaded as artefacts; only the small JSON / MD / PNG files are committed by hand.
+on:
+  workflow_dispatch:
+    inputs:
+      study:
+        description: which study
+        type: choice
+        options: [seeds-unsw, seeds-cic, seeds-cic-corrected, run-unsw, run-cic, run-cic-corrected,
+                  xdata, repro-sharafaldin, repro-moustafa, steal-cic, data-2018-pin]
+        default: seeds-unsw
+      seeds:
+        description: JSON list of seeds (one job per seed for seeds-*)
+        default: "[0, 1, 2, 3, 4]"
+      extra:
+        description: extra CLI flags
+        default: ""
+  schedule:
+    - cron: "0 5 * * 1"  # weekly: re-download UNSW-NB15 and run the real-data tests (mirror drift)
+permissions:
+  contents: read
+concurrency:
+  group: bench-${{ inputs.study || 'weekly' }}
+  cancel-in-progress: false
+env:
+  FEINT_DATA: ${{ github.workspace }}/../data
+jobs:
+  weekly-realdata:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - run: python scripts/download_unsw_nb15.py
+      - run: pytest -q -m realdata -k unsw
+
+  seeds:
+    if: github.event_name == 'workflow_dispatch' && startsWith(inputs.study, 'seeds-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: ${{ fromJSON(inputs.seeds) }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.FEINT_DATA }}
+          key: data-${{ inputs.study }}-${{ hashFiles('scripts/download_*.py') }}
+      - name: data
+        run: |
+          case "${{ inputs.study }}" in
+            seeds-unsw) python scripts/download_unsw_nb15.py ;;
+            seeds-cic) python scripts/download_cicids2017.py ;;
+            seeds-cic-corrected) python scripts/download_cicids2017_corrected.py ;;
+          esac
+      - name: seed ${{ matrix.seed }}
+        run: |
+          case "${{ inputs.study }}" in
+            seeds-unsw) d=unsw_nb15 ;; seeds-cic) d=cicids2017 ;; seeds-cic-corrected) d=cicids2017_corrected ;;
+          esac
+          python -m feint seeds --data $d --seeds ${{ matrix.seed }} --adv --poison ${{ inputs.extra }} \
+            --out out/seed${{ matrix.seed }}
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ inputs.study }}-seed${{ matrix.seed }}
+          path: out/
+
+  seeds-merge:
+    needs: seeds
+    if: always() && github.event_name == 'workflow_dispatch' && startsWith(inputs.study, 'seeds-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: parts
+          pattern: ${{ inputs.study }}-seed*
+      - run: PYTHONPATH=. python scripts/merge_seeds.py merged $(ls parts/*/seed*/seeds.json)
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ inputs.study }}-merged
+          path: merged/
+
+  single:
+    if: github.event_name == 'workflow_dispatch' && !startsWith(inputs.study, 'seeds-')
+    runs-on: ubuntu-latest
+    timeout-minutes: 355
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - run: pip install -e ".[dev]"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ env.FEINT_DATA }}
+          key: data-${{ inputs.study }}-${{ hashFiles('scripts/download_*.py') }}
+      - name: study
+        run: |
+          set -x
+          case "${{ inputs.study }}" in
+            run-unsw) python scripts/download_unsw_nb15.py
+              python -m feint run --data unsw_nb15 ${{ inputs.extra }} --out out/unsw_nb15 ;;
+            run-cic) python scripts/download_cicids2017.py
+              python -m feint run --data cicids2017 ${{ inputs.extra }} --out out/cicids2017 ;;
+            run-cic-corrected) python scripts/download_cicids2017_corrected.py
+              python -m feint run --data cicids2017_corrected ${{ inputs.extra }} --out out/cicids2017_corrected ;;
+            xdata) python scripts/download_cicids2017_corrected.py
+              python scripts/download_cicids2018.py --allow-unpinned
+              python -m feint xdata --train cicids2017_corrected --test cicids2018 --seeds 0 1 2 3 4 \
+                ${{ inputs.extra }} --out out/xdata_2017c_to_2018
+              python -m feint xdata --train cicids2018 --test cicids2017_corrected --seeds 0 1 2 3 4 \
+                ${{ inputs.extra }} --out out/xdata_2018_to_2017c ;;
+            repro-sharafaldin) python scripts/download_cicids2017.py
+              python -m feint repro --paper sharafaldin2018 ${{ inputs.extra }} --out out/repro ;;
+            repro-moustafa) python scripts/download_unsw_nb15.py
+              python -m feint repro --paper moustafa2016 --out out/repro ;;
+            steal-cic) python scripts/download_cicids2017.py
+              python -m feint steal --data cicids2017 ${{ inputs.extra }} --out out/cicids2017 ;;
+            data-2018-pin) python scripts/download_cicids2018.py --allow-unpinned | tee out.txt
+              mkdir -p out && sha256sum $FEINT_DATA/cicids2018/*.csv | tee out/sha256.txt ;;
+          esac
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: ${{ inputs.study }}
+          path: out/

@@ -40,7 +40,7 @@ FILES = {
 DEFAULT_DAYS = ["Wednesday-14-02-2018_TrafficForML_CICFlowMeter.csv",
                 "Thursday-15-02-2018_TrafficForML_CICFlowMeter.csv",
                 "Friday-02-03-2018_TrafficForML_CICFlowMeter.csv"]
-DEFAULT = Path(os.environ.get("FEINT_DATA", Path(__file__).resolve().parents[1] / "data")) / "cicids2018"
+DEFAULT = Path(os.environ.get("FEINT_DATA") or Path.cwd() / "data") / "cicids2018"
 
 
 def main() -> None:
