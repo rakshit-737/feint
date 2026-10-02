@@ -4,6 +4,29 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+- Datasets: CSE-CIC-IDS2018 (three days, SHA-256 pinned from a size-verified CI download),
+  corrected CIC-IDS2017 (Engelen et al. 2021 / Liu et al. 2022), CICIoT2023 ipfixprobe subsample.
+- `feint xdata` cross-dataset study (corrected CIC-IDS2017 <-> CSE-CIC-IDS2018, 5 seeds).
+- `feint repro`: Moustafa & Slay 2016 and Sharafaldin et al. 2018 reproductions.
+- `feint seeds --adv --poison`: adversarial training and poisoning with 5-seed CIs.
+- `bench.yml` workflow for every heavy study; `paper.yml` builds the preprint draft in `paper/`.
+- Docs: Evaluation and Reproduce pages, dashboard over all datasets; CITATION.cff, templates.
+
+### Changed
+- Headline numbers are now 5-seed means with CIs (they moved by up to 0.07 from the seed-0 table).
+- Hardened tree models are attacked through both the undefended and the hardened MLP.
+- Corrected claims: budget semantics (constrained and textbook attacks are not budget-matched),
+  defender-favourable schema assumptions, UNSW derived-feature agreement, Sharafaldin setup.
+
+### Fixed
+- Download helper: single stream, per-destination lock, size and hash checks; a corrupted local
+  CSE-CIC-IDS2018 file produced by two concurrent downloaders was deleted and never used.
+- API input validation, data root default, single-threaded RF scoring, release notes extraction,
+  sdist fixtures.
+
 ## [1.0.0] - 2026-09-26
 
 ### Added
