@@ -133,7 +133,7 @@ jobs:
             run-cic-corrected) python scripts/download_cicids2017_corrected.py
               python -m feint run --data cicids2017_corrected ${{ inputs.extra }} --out out/cicids2017_corrected ;;
             xdata) python scripts/download_cicids2017_corrected.py
-              python scripts/download_cicids2018.py --allow-unpinned
+              python scripts/download_cicids2018.py
               python -m feint xdata --train cicids2017_corrected --test cicids2018 --seeds 0 1 2 3 4 \
                 ${{ inputs.extra }} --out out/xdata_2017c_to_2018
               python -m feint xdata --train cicids2018 --test cicids2017_corrected --seeds 0 1 2 3 4 \
