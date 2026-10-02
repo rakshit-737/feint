@@ -1,7 +1,7 @@
 # Architecture
 
 ```mermaid
-flowchart LR
+flowchart TB
   subgraph Data
     CIC["CIC-IDS2017 MachineLearningCVE"] --> L["loaders + dedup + sampling"]
     UNSW["UNSW-NB15 official split"] --> L

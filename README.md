@@ -122,7 +122,7 @@ CI 65-90 %), which is why the ensemble ORs it in (at 3.2 % FPR instead of 0.04 %
 ## How it works
 
 ```mermaid
-flowchart LR
+flowchart TB
   subgraph Data
     CIC["CIC-IDS2017 MachineLearningCVE"] --> L["loaders + dedup + sampling"]
     UNSW["UNSW-NB15 official split"] --> L

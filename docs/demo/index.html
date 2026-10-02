@@ -4,7 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>FEINT results dashboard</title>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<link rel="icon" href="data:,">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.js" integrity="sha384-G436+Z2nlA8+PNoeRvWdxKbvOf8E/y+lYxqht2iBwNHTQDV5CJr3+AGVj8fGZi5t" crossorigin="anonymous"></script>
 <style>
   :root { --bg:#fafafa; --fg:#1d1d1f; --muted:#666; --card:#fff; --line:#ddd; --accent:#3f51b5; }
   @media (prefers-color-scheme: dark) { :root { --bg:#121212; --fg:#eee; --muted:#aaa; --card:#1e1e1e; --line:#333; --accent:#8c9eff; } }
@@ -28,10 +29,8 @@
     <code>python -m feint run</code>. <a href="../">Back to the docs</a>.</p>
   <div class="row">
     <label>Dataset <select id="ds">
-      <option value="cicids2017">CIC-IDS2017</option>
-      <option value="unsw_nb15">UNSW-NB15</option>
     </select></label>
-    <label><input type="checkbox" id="unc"> show unconstrained attacks</label>
+    <label><input type="checkbox" id="unc"> show textbook (unconstrained) attacks</label>
   </div>
   <h2>Detection rate vs. attack budget (constrained adaptive evasion)</h2>
   <div class="card"><div class="chart"><canvas id="curve"></canvas></div></div>
@@ -45,6 +44,15 @@
 <script>
 const cache = {};
 let chart;
+const DS = { cicids2017: "CIC-IDS2017", cicids2017_corrected: "CIC-IDS2017 (corrected labels)",
+             unsw_nb15: "UNSW-NB15", ciciot2023: "CICIoT2023 (subsample)" };
+const NAMES = { mlp: "MLP", random_forest: "Random forest", xgboost: "XGBoost", ensemble: "FEINT ensemble",
+  mlp_adv_trained: "MLP + adv. training", xgboost_adv_trained: "XGBoost + adv. training",
+  ensemble_adv_trained: "Ensemble + adv. training", xgboost_robust_features: "XGBoost, robust features" };
+const COLORS = { mlp: "#4e79a7", random_forest: "#9c755f", xgboost: "#f28e2b", ensemble: "#e15759",
+  mlp_adv_trained: "#76b7b2", xgboost_adv_trained: "#edc948", ensemble_adv_trained: "#59a14f",
+  xgboost_robust_features: "#b07aa1" };
+const label = n => NAMES[n] || n;
 async function get(name) {
   if (!(name in cache)) {
     try { const r = await fetch("data/" + name); cache[name] = r.ok ? await r.json() : null; }
@@ -54,8 +62,20 @@ async function get(name) {
 }
 const f3 = v => (v == null || Number.isNaN(v)) ? "–" : Number(v).toFixed(3);
 function table(el, head, rows) {
-  el.innerHTML = "<tr>" + head.map(h => `<th>${h}</th>`).join("") + "</tr>" +
-    rows.map(r => "<tr>" + r.map(c => `<td>${c}</td>`).join("") + "</tr>").join("");
+  el.replaceChildren();
+  const tr = document.createElement("tr");
+  for (const h of head) { const th = document.createElement("th"); th.textContent = h; tr.append(th); }
+  el.append(tr);
+  for (const r of rows) {
+    const row = document.createElement("tr");
+    for (const c of r) { const td = document.createElement("td"); td.textContent = c; row.append(td); }
+    el.append(row);
+  }
+}
+function themeChart() {
+  const css = getComputedStyle(document.documentElement);
+  Chart.defaults.color = css.getPropertyValue("--fg").trim();
+  Chart.defaults.borderColor = css.getPropertyValue("--line").trim();
 }
 async function render() {
   const ds = document.getElementById("ds").value, unc = document.getElementById("unc").checked;
@@ -63,15 +83,18 @@ async function render() {
   if (!r) { document.getElementById("clean").textContent = "report not found"; return; }
   const sets = [];
   for (const [name, v] of Object.entries(r.robustness)) {
-    sets.push({ label: name, data: v.constrained.map(p => ({ x: p.eps, y: p.detection_rate })) });
+    const c = COLORS[name] || "#888";
+    sets.push({ label: label(name), borderColor: c, backgroundColor: c,
+                data: v.constrained.map(p => ({ x: p.eps, y: p.detection_rate })) });
     if (unc && v.unconstrained)
-      sets.push({ label: name + " (unconstrained)", borderDash: [5, 4],
+      sets.push({ label: label(name) + " (textbook)", borderDash: [5, 4], borderColor: c, backgroundColor: c,
                   data: v.unconstrained.map(p => ({ x: p.eps, y: p.detection_rate })) });
   }
+  themeChart();
   if (chart) chart.destroy();
   chart = new Chart(document.getElementById("curve"), {
     type: "line", data: { datasets: sets },
-    options: { maintainAspectRatio: false, parsing: false,
+    options: { animation: false, maintainAspectRatio: false, parsing: false,
       scales: { x: { type: "linear", title: { display: true, text: "eps (L-inf, standardised log space)" } },
                 y: { min: 0, max: 1, title: { display: true, text: "detection rate" } } } }
   });
@@ -80,15 +103,22 @@ async function render() {
   table(document.getElementById("fam"), ["family", "n", "clean", "attacked"],
     Object.entries(r.per_family || {}).map(([n, v]) => [n, v.n, f3(v.clean_detection), f3(v.adv_detection)]));
   const s = await get(ds + "_seeds.json"), st = document.getElementById("seeds");
-  if (!s) { st.innerHTML = "<tr><td>no multi-seed run committed for this dataset</td></tr>"; return; }
+  if (!s) { table(st, ["no multi-seed run committed for this dataset"], []); return; }
   const eps = Object.keys(Object.values(s.aggregate)[0].detection);
   const ci = c => `${f3(c.mean)} [${f3(c.ci95[0])}, ${f3(c.ci95[1])}]`;
   table(st, ["model", "F1", ...eps.map(e => "eps=" + e)],
-    Object.entries(s.aggregate).map(([n, a]) => [n, ci(a.f1), ...eps.map(e => ci(a.detection[e]))]));
+    Object.entries(s.aggregate).map(([n, a]) => [label(n), ci(a.f1), ...eps.map(e => ci(a.detection[e]))]));
 }
-document.getElementById("ds").onchange = render;
-document.getElementById("unc").onchange = render;
-render();
+async function init() {
+  const sel = document.getElementById("ds");
+  const names = (await get("index.json")) || ["cicids2017", "unsw_nb15"];
+  for (const n of names) { const o = document.createElement("option"); o.value = n; o.textContent = DS[n] || n; sel.append(o); }
+  sel.onchange = render;
+  document.getElementById("unc").onchange = render;
+  matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+  render();
+}
+init();
 </script>
 </body>
 </html>

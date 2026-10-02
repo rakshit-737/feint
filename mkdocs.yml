@@ -38,7 +38,8 @@ nav:
   - Getting started: getting-started.md
   - Architecture: architecture.md
   - Datasets: datasets.md
-  - Benchmarks: benchmarks.md
+  - Evaluation: evaluation.md
+  - Reproduce: reproduce.md
   - Results dashboard: demo/index.html
   - CLI & API reference: reference.md
   - Threat model: threat-model.md

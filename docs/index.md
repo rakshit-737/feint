@@ -1,22 +1,30 @@
 # FEINT
 
-**A network intrusion detector built to be attacked.** FEINT trains a flow-based NIDS ensemble on
-CIC-IDS2017 and UNSW-NB15, red-teams it with *adaptive* evasion that respects what a network
-attacker can actually change, poisons its training data, hardens it, explains every alert with
-SHAP and constraint-valid counterfactuals, and reports **robustness curves and base-rate-honest
-precision** instead of a single accuracy number.
+**Contribution in one sentence:** FEINT derives the attacker, adversarial training, a robust-feature
+model, a poison sanitiser and counterfactual explanations from *one declarative attacker-capability
+schema*, and measures over 5 seeds (95 % CIs), on four datasets plus a cross-dataset transfer, what
+each schema-derived defence buys against realisable adaptive evasion.
 
-> Everyone reports 99 % accuracy on CIC-IDS2017. FEINT asks what is left of that number when the
-> attacker knows the model and pads, delays or adds packets to its own traffic.
-> Short answer: **XGBoost at 99.7 % clean accuracy still detects only 42 % of attack flows under
-> a realisable attack, and 0 % on UNSW-NB15**. Adversarial training brings that back to 80-96 %,
-> and a model restricted to attacker-immutable features is untouched by the attack at a
-> 2.2-point FPR cost.
+[Results dashboard](demo/index.html){ .md-button .md-button--primary } [Evaluation](evaluation.md){ .md-button } [Reproduce](reproduce.md){ .md-button }
+
+![CIC-IDS2017 robustness curves](assets/cicids2017/robustness_curves.png)
+
+| constrained detection at eps=2 (5 seeds, mean [95 % CI]) | CIC-IDS2017 | UNSW-NB15 |
+|---|---|---|
+| XGBoost | 0.405 [0.376, 0.433] | 0.000 [0.000, 0.000] |
+| FEINT ensemble | 0.369 [0.279, 0.459] | 0.328 [0.262, 0.394] |
+| FEINT ensemble + adversarial training | 0.793 [0.763, 0.823] | 0.962 [0.957, 0.968] |
+| XGBoost, robust features only (conditional on the schema) | 0.994 [0.993, 0.995] | 0.942 [0.935, 0.950] |
+
+Trained on corrected CIC-IDS2017 and tested on CSE-CIC-IDS2018, XGBoost scores F1 0.000 on the shared
+attack families: none of these detectors transfers across datasets.
+
+**Try it in 60 seconds:** `docker run --rm ghcr.io/rakshit-737/feint:latest run --quick --n 2000 --eps 0 1 --no-figures --out /tmp/demo`
 
 - **[Getting started](getting-started.md)**: install, smoke study, API
 - **[Architecture](architecture.md)**: pipeline and module map
-- **[Benchmarks](benchmarks.md)**: real CIC-IDS2017 / UNSW-NB15 results, multi-seed confidence intervals
-- **[Interactive results dashboard](demo/index.html)**: static view over the committed reports
+- **[Evaluation](evaluation.md)**: methodology and every result with confidence intervals
+- **[Reproduce](reproduce.md)**: exact commands, runtimes and expected numbers
 - **[Threat model](threat-model.md)** and **[limitations](limitations.md)**
 
 !!! warning "Lab-only"

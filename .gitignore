@@ -17,6 +17,8 @@ data/
 docs/threat-model.md
 docs/security.md
 docs/changelog.md
+docs/evaluation.md
+docs/limitations.md
 docs/assets/
 docs/demo/data/
 site/

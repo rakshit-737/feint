@@ -3,7 +3,7 @@
 ```bash
 git clone https://github.com/rakshit-737/feint && cd feint
 pip install -e ".[dev]"                 # numpy, pandas, scikit-learn, xgboost (+ matplotlib, fastapi for dev)
-python -m pytest -q                     # 33 tests; real-data tests skip without datasets
+python -m pytest -q                     # real-data tests skip without datasets
 python -m feint run --quick --n 3000 --out results/demo   # 1-minute synthetic smoke study
 ```
 
@@ -22,7 +22,7 @@ curl -s localhost:8000/score -H 'content-type: application/json' \
 | step | command | time (laptop CPU, shared with other jobs) |
 |---|---|---|
 | download data | `python scripts/download_unsw_nb15.py && python scripts/download_cicids2017.py` (set `FEINT_DATA` to choose the directory, default `./data`) | network bound |
-| UNSW-NB15 study | `python -m feint run --data unsw_nb15 --out results/unsw_nb15 --save-model` | ~20 min |
+| UNSW-NB15 study | `python -m feint run --data unsw_nb15 --out results/unsw_nb15 --save-model` | ~65 min (3,776 s recorded) |
 | CIC-IDS2017 study | `python -m feint run --data cicids2017 --out results/cicids2017` | ~60 min (+7 min first CSV load; cached after) |
 | real-data tests | `FEINT_DATA=./data python -m pytest -q -m realdata` | |
 
