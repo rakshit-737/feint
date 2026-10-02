@@ -125,12 +125,13 @@ jobs:
           python-version: "3.12"
       - run: pip install -e ".[dev]"
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: inputs.study != 'data-2018-pin'  # 6.9 GB would evict every other data cache
         with:
           path: ${{ env.FEINT_DATA }}
           key: data-${{ inputs.study }}-${{ hashFiles('scripts/download_*.py') }}
       - name: study
         run: |
-          set -x
+          set -xo pipefail
           case "${{ inputs.study }}" in
             run-unsw) python scripts/download_unsw_nb15.py
               python -m feint run --data unsw_nb15 ${{ inputs.extra }} --out out/unsw_nb15 ;;
@@ -154,8 +155,8 @@ jobs:
               python -m feint repro --paper moustafa2016 --out out/repro ;;
             steal-cic) python scripts/download_cicids2017.py
               python -m feint steal --data cicids2017 ${{ inputs.extra }} --out out/cicids2017 ;;
-            data-2018-pin) python scripts/download_cicids2018.py --allow-unpinned | tee out.txt
-              mkdir -p out && sha256sum $FEINT_DATA/cicids2018/*.csv | tee out/sha256.txt ;;
+            data-2018-pin) mkdir -p out
+              python scripts/download_cicids2018.py --all --allow-unpinned --print-pins | tee out/pins.txt ;;
           esac
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -163,7 +164,8 @@ jobs:
           path: out/
 
   repro-a2pm:
-    # a2pm 1.2.0 pins numpy<2, so this reproduction runs on its own Python 3.11 environment
+    # a2pm 1.2.0 pins numpy<2, so this reproduction runs on its own Python 3.11 environment;
+    # TensorFlow 2.16 (the last line with numpy 1 support) provides the paper's Keras MLP.
     if: github.event_name == 'workflow_dispatch' && inputs.study == 'repro-a2pm'
     runs-on: ubuntu-latest
     timeout-minutes: 355
@@ -174,13 +176,20 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
-      - run: pip install "a2pm==1.2.0" "numpy<2" "pandas<2.3" "scikit-learn>=1.3,<1.6" requests
+      - run: >-
+          pip install "a2pm==1.2.0" "numpy<2" "pandas<2.3" "scikit-learn>=1.3,<1.6" "tensorflow-cpu==2.16.2"
+          "matplotlib>=3.8,<3.11" scipy requests
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ env.FEINT_DATA }}
           key: data-repro-sharafaldin-${{ hashFiles('scripts/download_*.py') }}
       - run: python scripts/download_cicids2017.py
-      - run: python scripts/repro_a2pm.py ${{ inputs.extra }} --out out/repro 2>&1 | tee out-log.txt
+      - name: reproduce (asserts the vectorised-pattern self-check)
+        env:
+          EXTRA: ${{ inputs.extra }}
+        run: |
+          set -o pipefail
+          python scripts/repro_a2pm.py $EXTRA --out out/repro 2>&1 | tee out-log.txt
       - if: always()
         run: mkdir -p out && cp out-log.txt out/ || true
       - if: always()
