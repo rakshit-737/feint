@@ -109,8 +109,9 @@ The robust-feature model costs 2.2 FPR points on CIC-IDS2017 and 7.1 on UNSW-NB1
 1.00 on both datasets; the robust-feature sanitiser lowers it to 0.08 [0.02, 0.14] on CIC-IDS2017
 but only to 0.68 [0.62, 0.74] on UNSW-NB15, where it also discards 10.8\,\% of clean benign flows.
 
-\textbf{Label correction.} On corrected CIC-IDS2017 (seed 0) undefended XGBoost keeps 0.496
-detection at $\epsilon=2$ instead of 0.405 and adversarially trained models 0.986--0.999: part of
+\textbf{Label correction.} On corrected CIC-IDS2017 (5 seeds) undefended XGBoost keeps 0.523
+[0.490, 0.556] detection at $\epsilon=2$ instead of 0.405, random forest falls to 0.005, and
+adversarially trained models reach 0.980--0.997: part of
 the original dataset's apparent difficulty is label noise.
 
 \textbf{Cross-dataset.} Training on corrected CIC-IDS2017 and testing on CSE-CIC-IDS2018 over shared

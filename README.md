@@ -266,9 +266,10 @@ All runs below are GitHub Actions jobs (`.github/workflows/bench.yml`), never th
 **Corrected CIC-IDS2017** (Engelen et al. 2021; the CNS 2022 re-release by Liu et al., which also
 fixes CSE-CIC-IDS2018). With labelling and flow-construction errors fixed and "attempted" flows
 relabelled benign, clean scores rise (XGBoost F1 0.9999, FPR 0.05 %) and so does robustness:
-undefended XGBoost keeps 0.496 detection at eps=2 (0.405 on the original), random forest falls to
-0.000, adversarially trained models stay at 0.986-0.999 (seed 0,
-[report](results/cicids2017_corrected/report.md); 5-seed run pending). Part of the original
+over 5 seeds undefended XGBoost keeps 0.523 [0.490, 0.556] detection at eps=2 (0.405 on the
+original), random forest falls to 0.005, adversarially trained models stay at 0.980-0.997, and the
+poison sanitiser's precision rises from 0.51 to 0.94 ([seeds.md](results/cicids2017_corrected/seeds.md),
+[report](results/cicids2017_corrected/report.md)). Part of the original
 dataset's apparent difficulty comes from mislabelled flows.
 
 **CSE-CIC-IDS2018 and cross-dataset transfer.** Three day files (1.09 GB; Bot, FTP/SSH brute
