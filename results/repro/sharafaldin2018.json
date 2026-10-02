@@ -1,0 +1,120 @@
+{
+  "paper": "Sharafaldin, Habibi Lashkari & Ghorbani, ICISSP 2018, Table 4",
+  "assumptions": [
+    "union of the Table 3 per-label feature selections (23 features)",
+    "all 8 MachineLearningCVE CSVs, duplicates kept, rows with inf/NaN dropped",
+    "stratified 70/30 split (the paper does not report its split)",
+    "scikit-learn defaults; ID3 = DecisionTree(criterion='entropy'); KNN and MLP on standardised features (not stated in the paper)",
+    "KNN trained on a stratified subsample of at most 300000 flows (runtime)",
+    "weighted multi-class precision / recall / F1 over the 15 labels"
+  ],
+  "rows_raw": 2830743,
+  "rows_used": 2830743,
+  "n_test": 849223,
+  "results": {
+    "KNN": {
+      "paper": {
+        "pr": 0.96,
+        "rc": 0.96,
+        "f1": 0.96,
+        "time_s": 1908.23
+      },
+      "ours": {
+        "pr": 0.9952486161608216,
+        "rc": 0.995306297639136,
+        "f1": 0.9952507167968146,
+        "time_s": 463.4
+      }
+    },
+    "RF": {
+      "paper": {
+        "pr": 0.98,
+        "rc": 0.97,
+        "f1": 0.97,
+        "time_s": 74.39
+      },
+      "ours": {
+        "pr": 0.9984997333973016,
+        "rc": 0.9985304213380938,
+        "f1": 0.9985042444108053,
+        "time_s": 194.7
+      }
+    },
+    "ID3": {
+      "paper": {
+        "pr": 0.98,
+        "rc": 0.98,
+        "f1": 0.98,
+        "time_s": 235.02
+      },
+      "ours": {
+        "pr": 0.9984663241741731,
+        "rc": 0.9984703664408524,
+        "f1": 0.998467083634904,
+        "time_s": 49.8
+      }
+    },
+    "Adaboost": {
+      "paper": {
+        "pr": 0.77,
+        "rc": 0.84,
+        "f1": 0.77,
+        "time_s": 1126.24
+      },
+      "ours": {
+        "pr": 0.8951205605173322,
+        "rc": 0.904471499241071,
+        "f1": 0.8878929409928369,
+        "time_s": 682.5
+      }
+    },
+    "MLP": {
+      "paper": {
+        "pr": 0.77,
+        "rc": 0.83,
+        "f1": 0.76,
+        "time_s": 575.73
+      },
+      "ours": {
+        "pr": 0.9823222577483636,
+        "rc": 0.9817421336916217,
+        "f1": 0.9813174232956227,
+        "time_s": 1224.0
+      }
+    },
+    "Naive-Bayes": {
+      "paper": {
+        "pr": 0.88,
+        "rc": 0.04,
+        "f1": 0.04,
+        "time_s": 14.77
+      },
+      "ours": {
+        "pr": 0.8657359625445423,
+        "rc": 0.10595921212685007,
+        "f1": 0.14080491996744843,
+        "time_s": 13.4
+      }
+    },
+    "QDA": {
+      "paper": {
+        "pr": 0.97,
+        "rc": 0.88,
+        "f1": 0.92,
+        "time_s": 18.79
+      },
+      "ours": null,
+      "note": "failed to fit: The covariance matrix of class BENIGN is not full rank. Increase the value of `reg_param` to reduce the collinearity."
+    }
+  },
+  "environment": {
+    "feint": "1.0.0",
+    "python": "3.12.14",
+    "platform": "Linux-6.17.0-1022-azure-x86_64-with-glibc2.39",
+    "numpy": "2.5.3",
+    "pandas": "3.0.6",
+    "scikit-learn": "1.9.1",
+    "xgboost": "3.4.1",
+    "git_commit": "f9f8facf57302ff81aa9174d856a74c50c5a202f"
+  }
+}

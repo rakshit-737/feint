@@ -292,11 +292,13 @@ IoT data, not as a detector.
 | paper (setup) | metric | paper | our reproduction under the paper's setup | FEINT (own setup) |
 |---|---|---|---|---|
 | Moustafa & Slay 2016, decision tree, official UNSW-NB15 split, all 42 features ([json](results/repro/moustafa2016.json)) | accuracy / FAR | 0.8556 / 0.1578 (secondary source) | 0.8649 / 0.2484 | XGBoost, 22 features: 0.8655 / FPR 0.259 |
-| Sharafaldin et al. 2018 Table 4, RF on the union of the Table 3 per-attack selected features, weighted multi-class P/R/F1, split not reported | F1 | 0.97 | see [results/repro](results/repro/) (`feint repro --paper sharafaldin2018`) | binary F1 0.994 on 11 de-duplicated schema features; not like-for-like |
+| Sharafaldin et al. 2018 Table 4, RF on the union of the Table 3 per-attack selected features, weighted multi-class P/R/F1, split not reported | F1 | 0.97 | RF 0.999 (KNN 0.995, ID3 0.998, AdaBoost 0.888, MLP 0.981, NB 0.141; QDA could not be fitted) ([json](results/repro/sharafaldin2018.json)) | binary F1 0.994 on 11 de-duplicated schema features; not like-for-like |
 | Vitorino et al. 2022 (A2PM, adversarial NIDS) | | | not attempted this round (needs a numpy<2, Python 3.11 job) | |
 
 Accuracy reproduces within one point; our false-alarm rate is far above the quoted 15.78 %, which
 we could check only against secondary sources (the paper is paywalled).
+
+Our Sharafaldin reproduction (stratified 70/30 split, duplicates kept, scikit-learn defaults; split and hyperparameters are our assumptions) has a higher F1 than Table 4 for every classifier that fits: RF 0.999 vs 0.97, and AdaBoost/MLP about 0.89/0.98 vs 0.77/0.76. A random split with duplicates kept leaks near-identical flows into the test set, which is the most likely reason; QDA fails because the benign covariance matrix is singular on these features, so we report it as not reproduced.
 
 ### Model stealing (label-only queries -> transfer attack), seed 0
 

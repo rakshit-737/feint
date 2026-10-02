@@ -128,8 +128,12 @@ true labels at $\epsilon=2$ (single seed).
 \textbf{Reproductions.} A decision tree on the official UNSW-NB15 partition with all 42 features
 reaches 0.865 accuracy and 0.248 false-alarm rate versus the 0.856 and 0.158 reported for
 \cite{moustafa2016} (checked against secondary sources only). Our reproduction of the
-\cite{sharafaldin2018} Table 4 setup (multi-class, union of the per-attack selected features) runs in
-the public benchmark workflow; the paper does not state its split. An adversarial-NIDS
+\cite{sharafaldin2018} Table 4 setup (multi-class, union of the per-attack selected features,
+stratified 70/30 split with duplicates kept, scikit-learn defaults; split and settings assumed)
+gives weighted F1 0.999 for RF (paper 0.97), 0.995 KNN, 0.998 ID3, 0.888 AdaBoost, 0.981 MLP and
+0.141 naive Bayes; QDA could not be fitted (singular benign covariance). Every fitted model has a higher F1
+higher than published, which we attribute mainly to duplicate flows shared across a random split.
+An adversarial-NIDS
 reproduction (A2PM \cite{vitorino2022}) was not completed.
 
 \section{Limitations}
