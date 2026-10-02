@@ -381,3 +381,12 @@ def test_xdata_quick(tmp_path):
 def test_unknown_dataset_name_is_clear():
     with pytest.raises(SystemExit, match="unknown dataset"):
         main(["run", "--data", "no_such_dataset", "--quick", "--out", "unused"])
+
+
+def test_ciciot2023_fixture_loader():
+    pytest.importorskip("pyarrow")
+    from feint.data import load_ciciot2023
+
+    ds = load_ciciot2023(FIX / "ciciot2023", per_class=30)
+    assert "BENIGN" in set(ds.attack) and ds.y.sum() > 0
+    assert ds.schema.name == "ciciot2023" and ds.schema.is_valid(ds.X, ds.X).all()

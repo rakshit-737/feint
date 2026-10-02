@@ -7,7 +7,7 @@ on:
       study:
         description: which study
         type: choice
-        options: [seeds-unsw, seeds-cic, seeds-cic-corrected, run-unsw, run-cic, run-cic-corrected,
+        options: [seeds-unsw, seeds-cic, seeds-cic-corrected, seeds-iot, run-unsw, run-iot, run-cic, run-cic-corrected,
                   xdata, repro-sharafaldin, repro-moustafa, steal-cic, data-2018-pin]
         default: seeds-unsw
       seeds:
@@ -67,11 +67,12 @@ jobs:
             seeds-unsw) python scripts/download_unsw_nb15.py ;;
             seeds-cic) python scripts/download_cicids2017.py ;;
             seeds-cic-corrected) python scripts/download_cicids2017_corrected.py ;;
+            seeds-iot) python scripts/download_ciciot2023.py ;;
           esac
       - name: seed ${{ matrix.seed }}
         run: |
           case "${{ inputs.study }}" in
-            seeds-unsw) d=unsw_nb15 ;; seeds-cic) d=cicids2017 ;; seeds-cic-corrected) d=cicids2017_corrected ;;
+            seeds-unsw) d=unsw_nb15 ;; seeds-cic) d=cicids2017 ;; seeds-cic-corrected) d=cicids2017_corrected ;; seeds-iot) d=ciciot2023 ;;
           esac
           python -m feint seeds --data $d --seeds ${{ matrix.seed }} --adv --poison ${{ inputs.extra }} \
             --out out/seed${{ matrix.seed }}
@@ -125,6 +126,8 @@ jobs:
           case "${{ inputs.study }}" in
             run-unsw) python scripts/download_unsw_nb15.py
               python -m feint run --data unsw_nb15 ${{ inputs.extra }} --out out/unsw_nb15 ;;
+            run-iot) python scripts/download_ciciot2023.py
+              python -m feint run --data ciciot2023 ${{ inputs.extra }} --out out/ciciot2023 ;;
             run-cic) python scripts/download_cicids2017.py
               python -m feint run --data cicids2017 ${{ inputs.extra }} --out out/cicids2017 ;;
             run-cic-corrected) python scripts/download_cicids2017_corrected.py

@@ -20,12 +20,13 @@ from .data import (
     load_cicids2017_corrected,
     load_cicids2018,
     load_cicids_csv,
+    load_ciciot2023,
     load_unsw_nb15,
     synthetic_flows,
 )
 from .pipeline import DEFAULT_EPS, StudyConfig, run_study, save
 
-DATASETS = ("synthetic", "cicids2017", "cicids2017_corrected", "cicids2018", "unsw_nb15")
+DATASETS = ("synthetic", "cicids2017", "cicids2017_corrected", "cicids2018", "ciciot2023", "unsw_nb15")
 
 
 def load(name: str, a) -> object:
@@ -36,6 +37,8 @@ def load(name: str, a) -> object:
     if name == "unsw_nb15":
         return load_unsw_nb15(a.data_dir)
     per_class = getattr(a, "per_class", 20_000)
+    if name == "ciciot2023":
+        return load_ciciot2023(a.data_dir, per_class=min(per_class, 5_000), seed=a.seed)
     if name == "cicids2018":
         return load_cicids2018(a.data_dir, per_class=per_class, seed=a.seed)
     if name == "cicids2017_corrected":

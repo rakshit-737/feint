@@ -269,4 +269,44 @@ UNSW_SCHEMA = Schema(
     },
 )
 
-SCHEMAS = {s.name: s for s in (CIC_SCHEMA, UNSW_SCHEMA)}
+# ----------------------------------------------------------------------------
+# CICIoT2023 re-exported with ipfixprobe (bidirectional flows). Bytes include IP headers.
+# ----------------------------------------------------------------------------
+def _iot_relations(s: Schema, X: np.ndarray, X0: np.ndarray) -> np.ndarray:
+    p, b = s.idx["packets"], s.idx["bytes"]
+    added = X[:, p] - X0[:, p]
+    lo = X0[:, b] + 40.0 * added
+    X[:, b] = np.clip(X[:, b], lo, np.maximum(X[:, p] * MTU, lo))
+    return X
+
+
+def _iot_relations_ok(s: Schema, X, X0, tol):
+    added = s.col(X, "packets") - s.col(X0, "packets")
+    b = s.col(X, "bytes")
+    lo = s.col(X0, "bytes") + 40.0 * added
+    return (b >= lo * (1 - tol) - tol) & (b <= np.maximum(s.col(X, "packets") * MTU, lo) * (1 + tol) + tol)
+
+
+IOT_FEATURES = ["duration", "packets", "bytes", "packets_rev", "bytes_rev", "dst_port",
+                "proto_tcp", "proto_udp", "bpp", "bpp_rev", "pkt_ratio", "bytes_per_s"]
+
+IOT_SCHEMA = Schema(
+    name="ciciot2023",
+    features=IOT_FEATURES,
+    up=["duration", "packets", "bytes"],
+    integer=["packets", "bytes"],
+    derived={"bpp": lambda s, X: s.col(X, "bytes") / np.maximum(s.col(X, "packets"), 1.0),
+             "bpp_rev": lambda s, X: s.col(X, "bytes_rev") / np.maximum(s.col(X, "packets_rev"), 1.0),
+             "pkt_ratio": lambda s, X: s.col(X, "packets") / (s.col(X, "packets_rev") + 1.0),
+             "bytes_per_s": lambda s, X: (s.col(X, "bytes") + s.col(X, "bytes_rev"))
+             / np.maximum(s.col(X, "duration"), 1e-6)},
+    relations=_iot_relations,
+    relations_ok=_iot_relations_ok,
+    notes={
+        "duration, packets, bytes": "attacker may delay / add packets / pad (only increase)",
+        "packets_rev, bytes_rev, dst_port, proto_*": "fixed (device replies, protocol)",
+        "bpp, bpp_rev, pkt_ratio, bytes_per_s": "derived from base features",
+    },
+)
+
+SCHEMAS = {s.name: s for s in (CIC_SCHEMA, UNSW_SCHEMA, IOT_SCHEMA)}

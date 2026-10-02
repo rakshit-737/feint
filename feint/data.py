@@ -13,7 +13,7 @@ from pathlib import Path
 
 import numpy as np
 
-from .schema import CIC_SCHEMA, MTU, UNSW_SCHEMA, Schema
+from .schema import CIC_SCHEMA, IOT_SCHEMA, MTU, UNSW_SCHEMA, Schema
 
 
 def data_root() -> Path:
@@ -346,6 +346,58 @@ def load_cicids2017_corrected(root: str | Path | None = None, per_class: int = 2
         raise FileNotFoundError(f"no corrected CIC-IDS2017 CSVs under {root}; run "
                                 "scripts/download_cicids2017_corrected.py or set FEINT_DATA / --data-dir")
     return _read_cic_files(files, "cicids2017-corrected", per_class, seed, attempted)
+
+
+# ----------------------------------------------------------------------------- CICIoT2023
+IOT_COLS = ["duration", "packets", "bytes", "packets_rev", "bytes_rev", "dst_port", "protocol", "label_class"]
+
+
+def _frame_to_iot(df) -> tuple[np.ndarray, np.ndarray]:
+    s = IOT_SCHEMA
+    X = np.zeros((len(df), len(s.features)))
+    for c in ("duration", "packets", "bytes", "packets_rev", "bytes_rev", "dst_port"):
+        X[:, s.idx[c]] = np.maximum(np.nan_to_num(df[c].to_numpy(dtype=float)), 0.0)
+    X[:, s.idx["packets"]] = np.maximum(X[:, s.idx["packets"]], 1.0)
+    proto = df["protocol"].to_numpy()
+    X[:, s.idx["proto_tcp"]] = (proto == 6).astype(float)
+    X[:, s.idx["proto_udp"]] = (proto == 17).astype(float)
+    lab = df["label_class"].astype(str).to_numpy()
+    lab = np.where(np.char.find(np.char.lower(lab.astype(str)), "benign") >= 0, "BENIGN", lab)
+    return s.recompute(X), lab
+
+
+def load_ciciot2023(root: str | Path | None = None, per_class: int = 5_000, seed: int = 0) -> Dataset:
+    """CICIoT2023 subsample from the ipfixprobe Parquet re-export (needs the ``data`` extra: pyarrow).
+
+    Labels are the source capture of each file. At most ``per_class`` flows are kept per label
+    (16 GB RAM; one Parquet file per attack class, see scripts/download_ciciot2023.py). Results on
+    these features are not comparable with the official CSV features of Neto et al. (2023).
+    """
+    import pandas as pd
+
+    root = Path(root) if root else data_root() / "ciciot2023"
+    files = sorted(Path(root).glob("*.parquet"))
+    if not files:
+        raise FileNotFoundError(f"no CICIoT2023 Parquet files under {root}; run "
+                                "scripts/download_ciciot2023.py or set FEINT_DATA / --data-dir")
+    rng = np.random.default_rng(seed)
+    parts = []
+    for f in files:
+        df = pd.read_parquet(f, columns=IOT_COLS)
+        if len(df) > per_class:
+            df = df.iloc[rng.choice(len(df), size=per_class, replace=False)]
+        parts.append(df)
+    X, lab = _frame_to_iot(pd.concat(parts, ignore_index=True))
+    keep = np.zeros(len(lab), dtype=bool)
+    for c in np.unique(lab):
+        idx = np.flatnonzero(lab == c)
+        keep[rng.choice(idx, size=min(per_class, len(idx)), replace=False)] = True
+    X, lab = X[keep], lab[keep]
+    y = (lab != "BENIGN").astype(int)
+    info = {"name": "ciciot2023", "files": len(files), "per_class_cap": per_class,
+            "source": "ipfixprobe re-export (Hugging Face Lystea/CICIOT2023-PARQUET)",
+            "class_counts": {str(c): int((lab == c).sum()) for c in np.unique(lab)}}
+    return Dataset(X, y, list(IOT_SCHEMA.features), IOT_SCHEMA, lab, np.zeros(len(y), dtype=int), info)
 
 
 # ----------------------------------------------------------------------------- UNSW-NB15
