@@ -517,7 +517,9 @@ def write_figure(r: dict, path: Path) -> None:
         ax.set_xlabel("A2PM iteration")
         ax.set_ylim(-0.02, 1.02)
         ax.grid(alpha=0.3)
-    axes[0].set_ylabel("score (lines: ours; circles: paper, iterations 0 and 50)")
+    axes[0].set_ylabel("score")
+    axes[0].plot([], [], linestyle="none", marker="o", mfc="none", color="grey",
+                 label="paper (Figs 5-7), iterations 0 and 50")
     axes[0].legend(fontsize=8, loc="lower left")
     fig.tight_layout()
     fig.savefig(path, dpi=90)
