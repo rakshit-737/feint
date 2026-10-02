@@ -1,0 +1,27 @@
+name: paper
+on:
+  push:
+    paths: ["paper/**", ".github/workflows/paper.yml"]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: paper-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: install TeX
+        run: sudo apt-get update -q && sudo apt-get install -y -q --no-install-recommends latexmk texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended
+      - name: build
+        working-directory: paper
+        run: latexmk -pdf -interaction=nonstopmode -halt-on-error feint.tex && ! grep -E "Citation .* undefined|Reference .* undefined" feint.log
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: feint-preprint
+          path: paper/feint.pdf

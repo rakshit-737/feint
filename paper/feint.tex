@@ -1,0 +1,152 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage[hidelinks]{hyperref}
+\usepackage{amsmath}
+\title{FEINT: One Attacker Schema for Attacking, Hardening and Explaining\\Flow-Based Network Intrusion Detectors\\[4pt]\large Preprint draft, not submitted}
+\author{Rakshit\\Vellore Institute of Technology, Chennai}
+\date{October 2026}
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Flow-based network intrusion detectors routinely report 99\,\% accuracy on public benchmarks, but
+those numbers say little about an attacker who knows the model and shapes its own traffic. We
+present FEINT, an open-source pipeline in which a single declarative \emph{attacker-capability
+schema} (which flow features the attacker can raise, set freely, or not touch, plus the integer,
+range and cross-feature relations that make a flow realisable) drives an adaptive evasion attack,
+adversarial training, a robust-feature model, a poisoning sanitiser and counterfactual
+explanations. Over five seeds on CIC-IDS2017 and UNSW-NB15, undefended XGBoost keeps
+0.405 [0.376, 0.433] and 0.000 detection of attack flows under a realisable attack at the largest
+budget; adversarial training of an XGBoost/MLP/autoencoder ensemble restores 0.793 [0.763, 0.823]
+and 0.962 [0.957, 0.968]. A model restricted to the features the schema fixes is unaffected by this
+attacker, but only conditionally on that schema, which we show is partly defender-favourable. On
+label-corrected CIC-IDS2017 robustness numbers change materially, and detectors trained on
+CIC-IDS2017 do not transfer to CSE-CIC-IDS2018 (XGBoost F1 0.000 on shared attack families). We
+report reproductions of two published baselines, negative results, and the limitations of the
+feature-space threat model.
+\end{abstract}
+
+\section{Introduction}
+Machine-learning NIDS evaluations have well-documented pitfalls \cite{arp2022}: label errors in the
+datasets \cite{engelen2021,liu2022}, base-rate blindness, and robustness claims made against
+attacks that ignore what a network attacker can change \cite{pierazzi2020}. Prior work has studied
+each piece separately: constrained adversarial examples for tabular and network data
+\cite{simonetto2022,vitorino2022}, robustness through conserved features \cite{tong2019}, and
+label sanitisation against poisoning \cite{paudice2018}. FEINT's contribution is to derive all of
+these from \emph{one} schema and to measure, with seeds and intervals, what each schema-derived
+defence buys. We make no claim of a new attack or defence algorithm.
+
+\section{Threat model and schema}
+The attacker controls one side of a flow and knows the model (white-box), or can query it for
+scores or labels. Each dataset has a schema that labels every feature \emph{up} (may only
+increase: duration, forward packets, forward payload bytes), \emph{free} (client TCP window,
+IP TTL), \emph{fixed} (server-side and context features, destination port) or \emph{derived}
+(rates and means recomputed from the others), with integer constraints and relations such as
+$\text{bytes} \le \text{pkts}\cdot\text{MTU}$. A projection maps any perturbed vector back into
+the realisable set; a validity check confirms it. Budgets $\epsilon$ are $L_\infty$ radii on the
+controllable features in standardised $\log(1+x)$ space; derived features follow and can move
+further, so the realised all-feature distance can exceed $\epsilon$.
+
+The schema also fixes features a client can influence indirectly: UNSW-NB15 \texttt{ct\_*}
+counters (by pacing or decoy connections), \texttt{trans\_depth} (HTTP pipelining) and
+server-response sizes. Results for the robust-feature model are therefore conditional on the
+schema.
+
+\section{Method}
+\textbf{Detectors.} XGBoost \cite{chen2016}, an MLP with analytic input gradients, a
+benign-trained autoencoder, and an ensemble $\max(\text{mean}(\text{XGB},\text{MLP}),\text{AE})$;
+logistic regression, random forest and isolation forest as baselines.
+\textbf{Attack.} Projected gradient descent \cite{madry2018} on the target (or, for trees, on
+both the undefended and the adversarially trained MLP as surrogates) followed by 100 score-based
+black-box queries, keeping the per-flow best; detection at $\epsilon$ is the union over all
+evaluated budgets up to $\epsilon$, so curves are monotone. Following \cite{tramer2020}, hardened
+models are attacked adaptively.
+\textbf{Defences.} Adversarial training with schema-projected examples; a robust-feature XGBoost
+on the features no controllable or derived feature reaches; a kNN sanitiser that flags
+benign-labelled training points whose neighbours in robust-feature space are malicious
+(a restriction of \cite{paudice2018}); an adversarial-input alarm.
+\textbf{Explanations.} Exact TreeSHAP \cite{lundberg2020} and counterfactuals defined as
+minimal-budget schema-valid evasions.
+\textbf{Stealing.} An MLP surrogate trained on hard-label queries \cite{tramer2016} is used for a
+pure transfer attack.
+
+\section{Setup}
+CIC-IDS2017 \cite{sharafaldin2018}: 2.83\,M flows, de-duplicated in the 11-feature schema
+projection, 10\,\% per class with a 5{,}000 floor (253\,k flows), stratified 70/30 split, the
+subsample redrawn per seed. Corrected CIC-IDS2017 and CSE-CIC-IDS2018 from the re-release of
+\cite{liu2022}/\cite{engelen2021} and the official S3 bucket (three day files, SHA-256 pinned).
+UNSW-NB15 \cite{moustafa2015}: official 175\,k/82\,k partition. CICIoT2023 \cite{neto2023}: a
+public ipfixprobe re-export, at most 5{,}000 flows per label for a 16\,GB machine. Five seeds,
+1{,}000 held-out attack flows per curve point, 95\,\% Student-$t$ intervals ($t_4=2.78$) clipped
+to $[0,1]$. All heavy runs execute on GitHub Actions runners; code, results and the workflow are
+public.
+
+\section{Results}
+\begin{table}[h]\centering\small
+\begin{tabular}{lcccc}\toprule
+& \multicolumn{2}{c}{CIC-IDS2017} & \multicolumn{2}{c}{UNSW-NB15}\\
+model & $\epsilon=0$ & $\epsilon=2$ & $\epsilon=0$ & $\epsilon=2$\\\midrule
+MLP & 0.991 & 0.058 [0.001, 0.116] & 0.964 & 0.064 [0.052, 0.077]\\
+Random forest & 0.995 & 0.377 [0.306, 0.447] & 0.971 & 0.000 [0.000, 0.000]\\
+XGBoost & 0.998 & 0.405 [0.376, 0.433] & 0.967 & 0.000 [0.000, 0.000]\\
+Ensemble & 0.998 & 0.369 [0.279, 0.459] & 0.969 & 0.328 [0.262, 0.394]\\
+MLP + AT & 0.986 & 0.688 [0.580, 0.797] & 0.961 & 0.808 [0.746, 0.869]\\
+XGBoost + AT & 0.999 & 0.788 [0.755, 0.821] & 0.967 & 0.941 [0.908, 0.974]\\
+Ensemble + AT & 0.998 & 0.793 [0.763, 0.823] & 0.969 & 0.962 [0.957, 0.968]\\
+Robust features & 0.994 & 0.994 [0.993, 0.995] & 0.942 & 0.942 [0.935, 0.950]\\\bottomrule
+\end{tabular}
+\caption{Detection rate of attack flows under constrained adaptive evasion, 5-seed mean [95\,\% CI].}
+\end{table}
+
+\textbf{Evasion and hardening.} Table 1 shows the collapse of undefended detectors and the recovery
+from adversarial training, with clean F1 within 0.002. On CIC-IDS2017 the ensemble and XGBoost are
+statistically indistinguishable at $\epsilon=2$ while the ensemble has about four times the FPR.
+The robust-feature model costs 2.2 FPR points on CIC-IDS2017 and 7.1 on UNSW-NB15.
+
+\textbf{Poisoning.} With 2\,\% of a 100\,k-flow training subsample poisoned, backdoor success is
+1.00 on both datasets; the robust-feature sanitiser lowers it to 0.08 [0.02, 0.14] on CIC-IDS2017
+but only to 0.68 [0.62, 0.74] on UNSW-NB15, where it also discards 10.8\,\% of clean benign flows.
+
+\textbf{Label correction.} On corrected CIC-IDS2017 (seed 0) undefended XGBoost keeps 0.496
+detection at $\epsilon=2$ instead of 0.405 and adversarially trained models 0.986--0.999: part of
+the original dataset's apparent difficulty is label noise.
+
+\textbf{Cross-dataset.} Training on corrected CIC-IDS2017 and testing on CSE-CIC-IDS2018 over shared
+families gives F1 0.000 for XGBoost, 0.211 after adversarial training and 0.506 for the
+robust-feature model (5 seeds); the reverse direction gives 0.015, 0.488 [0.078, 0.898] and 0.024.
+
+\textbf{Negative result: CICIoT2023.} On the ipfixprobe re-export no model separates benign from
+attack captures (benign FPR 0.82--0.997); we do not report it as a detector.
+
+\textbf{Stealing.} With 2{,}000 label queries a stolen surrogate agrees with the victim on 95.6\,\%
+(CIC) and 91.4\,\% (UNSW) of test flows and transfers at least as well as a surrogate trained on
+true labels at $\epsilon=2$ (single seed).
+
+\textbf{Reproductions.} A decision tree on the official UNSW-NB15 partition with all 42 features
+reaches 0.865 accuracy and 0.248 false-alarm rate versus the 0.856 and 0.158 reported for
+\cite{moustafa2016} (checked against secondary sources only). Our reproduction of the
+\cite{sharafaldin2018} Table 4 setup (multi-class, union of the per-attack selected features) runs in
+the public benchmark workflow; the paper does not state its split. An adversarial-NIDS
+reproduction (A2PM \cite{vitorino2022}) was not completed.
+
+\section{Limitations}
+Feature-space only: no packets are rewritten and no flow extractor is re-run
+\cite{pierazzi2020}. The constrained and textbook attacks are not budget-matched. The alarm and
+counterfactual figures use a single budget and are optimistic. UNSW-NB15 derived features are
+recomputed with a convention that differs from the published columns. All robustness numbers are
+empirical upper bounds from our attacks.
+
+\section{Ethics and reproducibility}
+FEINT perturbs feature vectors of public datasets against locally trained models; it generates no
+traffic and contains no exploit code. Code, the benchmark workflow, per-seed result files and
+pinned dataset hashes are at \url{https://github.com/rakshit-737/feint}.
+
+\section*{Acknowledgements}
+Code, experiments and this draft were produced with substantial assistance from an AI system
+(Claude, Anthropic); the author is responsible for all content.
+
+\bibliographystyle{plain}
+\bibliography{refs}
+\end{document}
