@@ -326,15 +326,17 @@ and the error rate 0.135, none of them 0.158. We therefore treat both published 
 Our Sharafaldin reproduction (stratified 70/30 split, duplicates kept, scikit-learn defaults; split and hyperparameters are our assumptions) has a higher F1 than Table 4 for every classifier that fits: RF 0.999 vs 0.97, and AdaBoost/MLP about 0.89/0.98 vs 0.77/0.76. A random split with duplicates kept leaks near-identical flows into the test set, which is the most likely reason; QDA with defaults fails because the benign covariance matrix is singular on these features; a regularised QDA (a deviation, labelled as such) reaches 0.869 against the paper's 0.92, the only classifier below its published F1. On the corrected release the same setup gives the same picture (every fitted model above Table 4), so label noise does not explain the gap.
 
 **A2PM (Vitorino et al. 2022) reproduces in shape, and partly in value.** Regularly trained models
-collapse under 50 A2PM iterations: the RF reaches 0.000 accuracy on malicious flows under both
-attacks, as in the paper, and the MLP falls to 0.078 under the untargeted attack (paper 0.009);
-untargeted macro-F1 falls to 0.234 / 0.166 (paper 0.209 / 0.183). A2PM adversarial training keeps
-most of the accuracy: the RF keeps 0.901 under the untargeted attack (paper 0.900) and the MLP 0.947
-under the targeted one (paper 0.944). Three differences remain. Our adversarially trained RF loses 7
-points under the targeted attack, where the paper's keeps 0.999. Our regular MLP resists the
+collapse under 50 A2PM iterations and A2PM adversarial training keeps most of the accuracy, as in
+the paper. Six of the twelve end points agree within 0.03. For example, the RF reaches 0.000
+accuracy on malicious flows under both attacks (paper 0.000), the adversarially trained RF keeps
+0.901 under the untargeted attack (paper 0.900) and the adversarially trained MLP keeps 0.947 under
+the targeted one (paper 0.944). The largest differences are in the MLPs. Our regular MLP resists the
 targeted attack longer: 0.404 after 50 iterations against 0.104, although its first-iteration drop
-of 16 points matches the paper's 15. Its clean macro-F1 is 0.88 against the paper's 0.97, because
-the minority classes are weaker. We know of two deviations. The MachineLearningCVE CSVs carry the
+of 16 points matches the paper's 15. Our adversarially trained MLP keeps 0.931 under the untargeted
+attack against 0.789. Our adversarially trained models also keep a higher untargeted macro-F1 (0.64 /
+0.60 against 0.54 / 0.51). Our adversarially trained RF loses 7 points under the targeted attack,
+where the paper's loses none. Our MLP's clean macro-F1 is 0.88 against the paper's 0.97, because its
+minority classes are weaker. We know of two deviations. The MachineLearningCVE CSVs carry the
 destination port as one numeric column; the paper one-hot encoded port and protocol. We also replaced
 a2pm 1.2.0's per-value Python loops (hours per attack) with vectorised subclasses that draw from the
 same distribution. Every run checks them against the library, at transform level and end to end:
