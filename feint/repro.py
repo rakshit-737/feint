@@ -53,41 +53,92 @@ def _classifiers(seed: int):
         "MLP": make_pipeline(StandardScaler(), MLPClassifier(random_state=seed, max_iter=200)),
         "Naive-Bayes": GaussianNB(),
         "QDA": QuadraticDiscriminantAnalysis(reg_param=0.0),
+        # deviation from the defaults, reported next to the failed default fit: a small covariance
+        # regulariser, as scikit-learn's error message suggests for rank-deficient classes
+        "QDA (reg_param=1e-3)": QuadraticDiscriminantAnalysis(reg_param=1e-3),
     }
 
 
-def sharafaldin2018(root=None, seed: int = 0, knn_max_train: int = 300_000, models=None) -> dict:
-    """Multi-class reproduction of Table 4 on the original MachineLearningCVE CSVs (duplicates kept)."""
+# header spellings of the corrected re-release (Engelen et al. 2021) that differ by more than case,
+# punctuation or a trailing plural 's'
+_CORRECTED_ALIASES = {"Init_Win_bytes_forward": "FWD Init Win Bytes",
+                      "Init_Win_bytes_backward": "Bwd Init Win Bytes"}
+
+
+def _resolve_columns(header, wanted) -> dict:
+    """Map each wanted MachineLearningCVE name to a header column of another CICFlowMeter release."""
+    from .data import _key
+
+    def k(c):
+        return _key(c).rstrip("s")
+
+    by_key = {}
+    for h in header:
+        by_key.setdefault(k(h), h)
+    out, missing = {}, []
+    for w in wanted:
+        h = by_key.get(k(w)) or by_key.get(k(_CORRECTED_ALIASES.get(w, w)))
+        if h is None:
+            missing.append(w)
+        else:
+            out[h] = w
+    if missing:
+        raise KeyError(f"columns not found in the corrected CSVs: {missing}; header: {list(header)}")
+    return out
+
+
+def sharafaldin2018(root=None, seed: int = 0, knn_max_train: int = 300_000, models=None,
+                    corrected: bool = False) -> dict:
+    """Multi-class reproduction of Table 4 (duplicates kept).
+
+    ``corrected=False`` uses the original MachineLearningCVE CSVs; ``corrected=True`` the corrected
+    re-release of Engelen et al. 2021, with '- Attempted' flows relabelled benign.
+    """
     import warnings
 
     import pandas as pd
     from sklearn.metrics import precision_recall_fscore_support
     from sklearn.model_selection import train_test_split
 
-    root = Path(root) if root else data_root() / "cicids2017"
-    files = sorted(root.rglob("*pcap_ISCX.csv"))
+    from .data import CIC_DAYS, _norm_family
+
+    if corrected:
+        root = Path(root) if root else data_root() / "cicids2017-corrected"
+        files = sorted(p for p in root.glob("*.csv") if p.stem.lower() in {d.lower() for d in CIC_DAYS})
+    else:
+        root = Path(root) if root else data_root() / "cicids2017"
+        files = sorted(root.rglob("*pcap_ISCX.csv"))
     if not files:
         raise FileNotFoundError(f"no CIC-IDS2017 CSVs under {root}")
     frames = []
     for f in files:
-        df = pd.read_csv(f, encoding="latin-1", low_memory=False)
-        df.columns = [c.strip() for c in df.columns]
+        head = pd.read_csv(f, nrows=0, encoding="latin-1").columns
+        cmap = _resolve_columns(head, SHARAFALDIN_T3 + ["Label"])
+        df = pd.read_csv(f, usecols=list(cmap), encoding="latin-1", low_memory=False).rename(columns=cmap)
         frames.append(df[SHARAFALDIN_T3 + ["Label"]])
     df = pd.concat(frames, ignore_index=True)
     n_raw = len(df)
     X = df[SHARAFALDIN_T3].apply(pd.to_numeric, errors="coerce").to_numpy(dtype=np.float64)
     ok = np.isfinite(X).all(1)
-    X, y = X[ok], df["Label"].astype(str).str.strip().to_numpy()[ok]
+    labels = df["Label"].astype(str).str.strip()
+    if corrected:
+        labels = labels.map(_norm_family)
+    X, y = X[ok], labels.to_numpy()[ok]
     Xtr, Xte, ytr, yte = train_test_split(X, y, test_size=0.3, random_state=seed, stratify=y)
     out = {"paper": "Sharafaldin, Habibi Lashkari & Ghorbani, ICISSP 2018, Table 4",
            "assumptions": [
                "union of the Table 3 per-label feature selections (23 features)",
-               "all 8 MachineLearningCVE CSVs, duplicates kept, rows with inf/NaN dropped",
+               ("corrected CIC-IDS2017 (Engelen et al. 2021), 5 day files, '- Attempted' flows relabelled "
+                "benign" if corrected else "all 8 MachineLearningCVE CSVs")
+               + ", duplicates kept, rows with inf/NaN dropped",
                "stratified 70/30 split (the paper does not report its split)",
                "scikit-learn defaults; ID3 = DecisionTree(criterion='entropy'); KNN and MLP on standardised"
                " features (not stated in the paper)",
                f"KNN trained on a stratified subsample of at most {knn_max_train} flows (runtime)",
-               "weighted multi-class precision / recall / F1 over the 15 labels"],
+               f"weighted multi-class precision / recall / F1 over the {len(set(y))} labels",
+               "'QDA (reg_param=1e-3)' deviates from the defaults (covariance regulariser); the default"
+               " fit is reported as well"],
+           "corrected": bool(corrected),
            "rows_raw": int(n_raw), "rows_used": int(len(y)), "n_test": int(len(yte)), "results": {}}
     for name, clf in _classifiers(seed).items():
         if models and name not in models:
@@ -105,12 +156,13 @@ def sharafaldin2018(root=None, seed: int = 0, knn_max_train: int = 300_000, mode
                 # e.g. QDA: rank-deficient class covariances, and classes (Heartbleed, 8 training
                 # flows) with fewer samples than features. Record the failure instead of losing the
                 # other classifiers' results.
-                out["results"][name] = {"paper": dict(zip(("pr", "rc", "f1", "time_s"), SHARAFALDIN_T4[name])),
+                out["results"][name] = {"paper": dict(zip(("pr", "rc", "f1", "time_s"),
+                                                          SHARAFALDIN_T4[name.split(" ")[0]])),
                                         "ours": None, "note": f"failed to fit: {str(e)[:200]}"}
                 continue
             p = clf.predict(Xte)
         pr, rc, f1, _ = precision_recall_fscore_support(yte, p, average="weighted", zero_division=0)
-        paper = SHARAFALDIN_T4[name]
+        paper = SHARAFALDIN_T4[name.split(" ")[0]]
         out["results"][name] = {"paper": {"pr": paper[0], "rc": paper[1], "f1": paper[2], "time_s": paper[3]},
                                 "ours": {"pr": float(pr), "rc": float(rc), "f1": float(f1),
                                          "time_s": round(time.time() - t, 1)}}

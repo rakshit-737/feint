@@ -116,12 +116,25 @@ def main(argv=None):
     xd.add_argument("--quick", action="store_true", help="tiny models and budgets (smoke test)")
     xd.add_argument("--out", default="results/xdata", help="output directory")
 
+    ab = sub.add_parser("ablate", help="paired schema ablations: sanitiser and adversarial training")
+    ab.add_argument("--data", default="synthetic")
+    ab.add_argument("--data-dir", default=None)
+    ab.add_argument("--frac", type=float, default=0.1)
+    ab.add_argument("--n", type=int, default=4000)
+    ab.add_argument("--max-rows", type=int, default=200000)
+    ab.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
+    ab.add_argument("--eps", type=float, nargs="+", default=DEFAULT_EPS)
+    ab.add_argument("--quick", action="store_true")
+    ab.add_argument("--out", default="results/ablation")
+
     rp = sub.add_parser("repro", help="reproduce a published result under the paper's own setup",
                         formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     rp.add_argument("--paper", choices=["sharafaldin2018", "moustafa2016"], required=True)
     rp.add_argument("--data-dir", default=None, help="dataset directory")
     rp.add_argument("--seed", type=int, default=0, help="split / model seed")
     rp.add_argument("--models", nargs="*", default=None, help="subset of classifiers (default: all)")
+    rp.add_argument("--corrected", action="store_true",
+                    help="sharafaldin2018 on the corrected CIC-IDS2017 re-release (Engelen et al. 2021)")
     rp.add_argument("--out", default="results/repro", help="output directory")
 
     st = sub.add_parser("steal", help="model-stealing study (label-only queries -> transfer attack)")
@@ -185,10 +198,10 @@ def main(argv=None):
         from . import repro as RP
 
         if a.paper == "sharafaldin2018":
-            r = RP.sharafaldin2018(a.data_dir, seed=a.seed, models=a.models)
+            r = RP.sharafaldin2018(a.data_dir, seed=a.seed, models=a.models, corrected=a.corrected)
         else:
             r = RP.moustafa_slay2016(a.data_dir, seed=a.seed)
-        RP.save(r, a.out, a.paper)
+        RP.save(r, a.out, a.paper + ("_corrected" if getattr(a, "corrected", False) else ""))
         print(RP.to_markdown(r))
         return 0
 
@@ -205,6 +218,18 @@ def main(argv=None):
         out = XD.save(r, a.out)
         print(XD.to_markdown(r))
         print(f"saved {out / 'xdata.json'}")
+        return 0
+
+    if a.cmd == "ablate":
+        from . import ablation as AB
+
+        a.seed = 0
+        ds = load(a.data, a)
+        cfg = StudyConfig.quick(eps=a.eps) if a.quick else StudyConfig(eps=a.eps)
+        r = AB.ablation_study(ds, a.seeds, cfg)
+        out = AB.save(r, a.out)
+        print(AB.to_markdown(r))
+        print(f"saved {out / 'ablation.json'}")
         return 0
 
     if a.cmd == "seeds":

@@ -326,6 +326,19 @@ def test_seed_study_quick(tmp_path):
     assert "eps=1.0" in (tmp_path / "seeds.md").read_text()
 
 
+def test_ablation_quick(tmp_path):
+    assert main(["ablate", "--quick", "--n", "800", "--seeds", "0", "1", "--eps", "0", "1",
+                 "--out", str(tmp_path)]) == 0
+    from feint import ablation as AB
+
+    r = AB.merge([tmp_path / "ablation.json"])
+    a = r["aggregate"]
+    assert set(a["adversarial_training"]) == {"constrained_at", "unconstrained_at", "paired_difference"}
+    d = a["sanitiser"]["paired_difference"]["backdoor_success"]
+    assert d["n"] == 2
+    assert "difference" in (tmp_path / "ablation.md").read_text()
+
+
 def test_model_stealing_quick(tmp_path):
     assert main(["steal", "--quick", "--n", "800", "--budgets", "100", "400", "--eps", "1",
                  "--out", str(tmp_path)]) == 0
@@ -390,3 +403,15 @@ def test_ciciot2023_fixture_loader():
     ds = load_ciciot2023(FIX / "ciciot2023", per_class=30)
     assert "BENIGN" in set(ds.attack) and ds.y.sum() > 0
     assert ds.schema.name == "ciciot2023" and ds.schema.is_valid(ds.X, ds.X).all()
+
+
+def test_repro_resolves_corrected_header_spellings():
+    from feint.repro import SHARAFALDIN_T3, _resolve_columns
+
+    header = [c.replace("Total Length of Fwd Packets", "Total Length of Fwd Packet")
+              .replace("Init_Win_bytes_forward", "FWD Init Win Bytes")
+              .replace("Init_Win_bytes_backward", "Bwd Init Win Bytes") for c in SHARAFALDIN_T3] + ["Label"]
+    m = _resolve_columns(header, SHARAFALDIN_T3 + ["Label"])
+    assert sorted(m.values()) == sorted(SHARAFALDIN_T3 + ["Label"])
+    with pytest.raises(KeyError):
+        _resolve_columns(header[1:], SHARAFALDIN_T3)
