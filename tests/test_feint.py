@@ -335,3 +335,49 @@ def test_model_stealing_quick(tmp_path):
         assert 0.5 <= v["agreement"] <= 1.0
         assert 0.0 <= v["victim_detection"]["1.0"] <= v["victim_detection"]["0.0"] + 1e-9
     assert "label queries" in (tmp_path / "steal.md").read_text()
+
+
+FIX = Path(__file__).parent / "fixtures"
+
+
+def test_cicids2018_fixture_loader():
+    from feint.data import load_cicids2018
+
+    ds = load_cicids2018(FIX / "cicids2018", per_class=1000)
+    assert "Label" not in set(ds.attack)  # repeated header row dropped
+    assert {"BENIGN", "FTP-BruteForce", "Bot"} <= set(ds.attack)
+    assert ds.X.shape[1] == len(ds.schema.features) and ds.schema.is_valid(ds.X, ds.X).all()
+
+
+def test_cicids2017_corrected_attempted_relabel():
+    from feint.data import load_cicids2017_corrected
+
+    a = load_cicids2017_corrected(FIX / "cicids2017-corrected", attempted="benign")
+    b = load_cicids2017_corrected(FIX / "cicids2017-corrected", attempted="attack")
+    assert not any("Attempted" in x for x in set(a.attack) | set(b.attack))
+    assert a.y.sum() < b.y.sum()
+
+
+def test_per_class_cap():
+    from feint.data import load_cicids2018
+
+    ds = load_cicids2018(FIX / "cicids2018", per_class=5)
+    _, counts = np.unique(ds.attack, return_counts=True)
+    assert counts.max() <= 5
+
+
+def test_xdata_quick(tmp_path):
+    out = tmp_path / "x"
+    assert main(["xdata", "--train", "cicids2017_corrected", "--train-dir", str(FIX / "cicids2017-corrected"),
+                 "--test", "cicids2018", "--test-dir", str(FIX / "cicids2018"), "--seeds", "0", "1",
+                 "--eps", "0", "1", "--quick", "--out", str(out)]) == 0
+    import json
+
+    r = json.loads((out / "xdata.json").read_text())
+    assert set(r["aggregate"]) == {"xgboost", "xgboost_adv_trained", "xgboost_robust_features"}
+    assert "FTP brute force" in r["test_classes"]
+
+
+def test_unknown_dataset_name_is_clear():
+    with pytest.raises(SystemExit, match="unknown dataset"):
+        main(["run", "--data", "no_such_dataset", "--quick", "--out", "unused"])

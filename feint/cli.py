@@ -15,8 +15,17 @@ import sys
 import warnings
 from pathlib import Path
 
-from .data import load_cicids2017, load_cicids_csv, load_unsw_nb15, synthetic_flows
+from .data import (
+    load_cicids2017,
+    load_cicids2017_corrected,
+    load_cicids2018,
+    load_cicids_csv,
+    load_unsw_nb15,
+    synthetic_flows,
+)
 from .pipeline import DEFAULT_EPS, StudyConfig, run_study, save
+
+DATASETS = ("synthetic", "cicids2017", "cicids2017_corrected", "cicids2018", "unsw_nb15")
 
 
 def load(name: str, a) -> object:
@@ -26,6 +35,15 @@ def load(name: str, a) -> object:
         return load_cicids2017(a.data_dir, frac=a.frac, seed=a.seed)
     if name == "unsw_nb15":
         return load_unsw_nb15(a.data_dir)
+    per_class = getattr(a, "per_class", 20_000)
+    if name == "cicids2018":
+        return load_cicids2018(a.data_dir, per_class=per_class, seed=a.seed)
+    if name == "cicids2017_corrected":
+        return load_cicids2017_corrected(a.data_dir, per_class=per_class, seed=a.seed,
+                                         attempted=getattr(a, "attempted", "benign"))
+    if not Path(name).is_file():
+        raise SystemExit(f"--data: unknown dataset {name!r}; use one of {', '.join(DATASETS)} "
+                         "or a path to a CICFlowMeter CSV")
     return load_cicids_csv(name, a.max_rows)
 
 
@@ -37,7 +55,11 @@ def main(argv=None):
 
     r = sub.add_parser("run", help="train, attack, harden, explain, poison, report")
     r.add_argument("--data", default="synthetic",
-                   help="'synthetic', 'cicids2017', 'unsw_nb15' or a path to a CICFlowMeter CSV")
+                   help=f"one of {', '.join(DATASETS)} or a path to a CICFlowMeter CSV")
+    r.add_argument("--per-class", type=int, default=20_000,
+                   help="flows kept per label for cicids2018 / cicids2017_corrected")
+    r.add_argument("--attempted", choices=["benign", "attack"], default="benign",
+                   help="corrected CIC-IDS2017: how to label '- Attempted' flows")
     r.add_argument("--data-dir", default=None, help="dataset directory (default: $FEINT_DATA/<name>)")
     r.add_argument("--frac", type=float, default=0.1, help="CIC-IDS2017 per-class sampling fraction")
     r.add_argument("--n", type=int, default=4000, help="synthetic flow count")
@@ -74,6 +96,22 @@ def main(argv=None):
     sd.add_argument("--poison", action="store_true", help="also run the backdoor-poisoning study per seed")
     sd.add_argument("--quick", action="store_true")
     sd.add_argument("--out", default="results")
+
+    xd = sub.add_parser("xdata", help="cross-dataset study: train on one CIC dataset, test on another",
+                        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    xd.add_argument("--train", default="cicids2017", help="training dataset name or CSV path")
+    xd.add_argument("--test", default="cicids2018", help="test dataset name or CSV path")
+    xd.add_argument("--train-dir", default=None, help="training dataset directory")
+    xd.add_argument("--test-dir", default=None, help="test dataset directory")
+    xd.add_argument("--frac", type=float, default=0.1, help="CIC-IDS2017 per-class sampling fraction")
+    xd.add_argument("--per-class", type=int, default=20_000, help="flows kept per label (2018 / corrected)")
+    xd.add_argument("--attempted", choices=["benign", "attack"], default="benign",
+                    help="corrected CIC-IDS2017: how to label '- Attempted' flows")
+    xd.add_argument("--max-rows", type=int, default=200000, help="rows read from a CSV path")
+    xd.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2], help="model / attack seeds")
+    xd.add_argument("--eps", type=float, nargs="+", default=DEFAULT_EPS, help="attack budget grid")
+    xd.add_argument("--quick", action="store_true", help="tiny models and budgets (smoke test)")
+    xd.add_argument("--out", default="results/xdata", help="output directory")
 
     st = sub.add_parser("steal", help="model-stealing study (label-only queries -> transfer attack)")
     st.add_argument("--data", default="synthetic")
@@ -130,6 +168,21 @@ def main(argv=None):
         (out / "steal.json").write_text(_json.dumps(r, indent=2))
         (out / "steal.md").write_text(ST.to_markdown(r), encoding="utf-8")
         print(ST.to_markdown(r))
+        return 0
+
+    if a.cmd == "xdata":
+        from . import xdata as XD
+
+        a.seed, a.n = 0, 4000
+        a.data_dir = a.train_dir
+        train = load(a.train, a)
+        a.data_dir = a.test_dir
+        test = load(a.test, a)
+        cfg = StudyConfig.quick(eps=a.eps) if a.quick else StudyConfig(eps=a.eps)
+        r = XD.xdata_study(train, test, a.seeds, cfg)
+        out = XD.save(r, a.out)
+        print(XD.to_markdown(r))
+        print(f"saved {out / 'xdata.json'}")
         return 0
 
     if a.cmd == "seeds":

@@ -110,16 +110,74 @@ CIC_MAP = {
 }
 CIC_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
 
+# The same 11 CICFlowMeter quantities under the header spellings of CSE-CIC-IDS2018
+# (CICFlowMeter-V3) and of the corrected CIC-IDS2017 / CIC-IDS2018 re-release of Engelen et al.
+# (SPW 2021) and Liu et al. (CNS 2022). Matching is on lower-cased alphanumerics only.
+CIC_ALIASES = {
+    "Flow Duration": ["Flow Duration"],
+    "Total Fwd Packets": ["Total Fwd Packets", "Tot Fwd Pkts", "Total Fwd Packet"],
+    "Total Backward Packets": ["Total Backward Packets", "Tot Bwd Pkts", "Total Bwd packets"],
+    "Total Length of Fwd Packets": ["Total Length of Fwd Packets", "TotLen Fwd Pkts",
+                                    "Total Length of Fwd Packet"],
+    "Total Length of Bwd Packets": ["Total Length of Bwd Packets", "TotLen Bwd Pkts",
+                                    "Total Length of Bwd Packet"],
+    "Fwd Packet Length Max": ["Fwd Packet Length Max", "Fwd Pkt Len Max"],
+    "Bwd Packet Length Max": ["Bwd Packet Length Max", "Bwd Pkt Len Max"],
+    "SYN Flag Count": ["SYN Flag Count", "SYN Flag Cnt"],
+    "Destination Port": ["Destination Port", "Dst Port"],
+    "Init_Win_bytes_forward": ["Init_Win_bytes_forward", "Init Fwd Win Byts", "FWD Init Win Bytes"],
+    "Init_Win_bytes_backward": ["Init_Win_bytes_backward", "Init Bwd Win Byts", "Bwd Init Win Bytes"],
+    "Label": ["Label"],
+}
+
+
+def _key(c: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(c).lower())
+
+
+def _canonical_columns(columns) -> dict:
+    """Map raw CSV header names to the canonical CIC-IDS2017 names (only the ones we use)."""
+    lookup = {_key(a): canon for canon, al in CIC_ALIASES.items() for a in al}
+    out = {}
+    for c in columns:
+        canon = lookup.get(_key(c))
+        if canon and canon not in out.values():
+            out[c] = canon
+    return out
+
+
+def _norm_family(label: str, attempted: str = "benign") -> str:
+    """Normalise labels across releases: 'Benign' -> 'BENIGN'; '... - Attempted' handling."""
+    s = _norm_label(label)
+    if s.lower() == "benign":
+        return "BENIGN"
+    if "attempted" in s.lower():
+        # attack flows without attack payload (Engelen et al. 2021): benign by default
+        return "BENIGN" if attempted == "benign" else re.sub(r"\s*-\s*Attempted", "", s, flags=re.I)
+    return s
+
+
+# families present in both CIC-IDS2017 and CSE-CIC-IDS2018, for cross-dataset evaluation
+SHARED_FAMILIES = {
+    "FTP-Patator": "FTP brute force", "FTP-BruteForce": "FTP brute force",
+    "SSH-Patator": "SSH brute force", "SSH-Bruteforce": "SSH brute force",
+    "DoS GoldenEye": "DoS GoldenEye", "DoS attacks-GoldenEye": "DoS GoldenEye",
+    "DoS slowloris": "DoS Slowloris", "DoS attacks-Slowloris": "DoS Slowloris",
+    "DoS Hulk": "DoS Hulk", "DoS attacks-Hulk": "DoS Hulk",
+    "DoS Slowhttptest": "DoS SlowHTTPTest", "DoS attacks-SlowHTTPTest": "DoS SlowHTTPTest",
+    "Bot": "Bot", "BENIGN": "BENIGN",
+}
+
 
 def _norm_label(s: str) -> str:
     s = re.sub(r"[^\x20-\x7e]+", "-", str(s)).strip()
     return re.sub(r"\s*-+\s*", " - ", s) if "Web Attack" in s else s
 
 
-def _frame_to_cic(df, source: str = "") -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _frame_to_cic(df, source: str = "", attempted: str = "benign") -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     import pandas as pd
 
-    df = df.rename(columns=lambda c: c.strip())
+    df = df.rename(columns=_canonical_columns(df.columns))
     missing = [c for c in list(CIC_MAP) + ["Label"] if c not in df.columns]
     if missing:
         raise ValueError(f"{source}: CSV missing columns {missing}")
@@ -136,7 +194,8 @@ def _frame_to_cic(df, source: str = "") -> tuple[np.ndarray, np.ndarray, np.ndar
     X[:, mx] = np.clip(X[:, mx], np.ceil(np.round(X[:, fb] / X[:, fp], 6)), np.maximum(X[:, fb], 0))
     raw = df["Label"].astype(str).to_numpy()
     uniq, inv = np.unique(raw, return_inverse=True)
-    labels = np.array([_norm_label(v) for v in uniq], dtype=object)[inv].astype(str)
+    labels = np.array([_norm_family(v, attempted) for v in uniq], dtype=object)[inv].astype(str)
+    ok &= labels != "Label"  # header rows repeated inside some CSE-CIC-IDS2018 day files
     return s.recompute(X[ok]), labels[ok], ok
 
 
@@ -215,6 +274,78 @@ def load_cicids2017(root: str | Path | None = None, frac: float = 0.1, keep_rare
     except OSError:  # read-only data dir: caching is best-effort
         pass
     return Dataset(X, y, list(CIC_SCHEMA.features), CIC_SCHEMA, lab, grp, info)
+
+
+# ------------------------------------------------- CSE-CIC-IDS2018 / corrected CIC-IDS2017
+def _read_cic_files(files, name: str, per_class: int, seed: int, attempted: str = "benign",
+                    chunksize: int = 250_000, info_extra: dict | None = None) -> Dataset:
+    """Stream CICFlowMeter CSVs in chunks (12 columns only) with per-class reservoir caps.
+
+    Memory stays at O(per_class x classes) regardless of file size, so the 16 GB laptop and
+    the 7 GB Actions runner can both read multi-GB day files. Exact duplicate (features, label)
+    rows are dropped within the kept sample.
+    """
+    import pandas as pd
+
+    rng = np.random.default_rng(seed)
+    keep: dict[str, list] = {}
+    seen: dict[str, int] = {}
+    n_raw = 0
+    for gi, f in enumerate(files):
+        head = pd.read_csv(f, nrows=0, encoding="latin-1").columns
+        cols = list(_canonical_columns(head))
+        for df in pd.read_csv(f, usecols=cols, encoding="latin-1", low_memory=False, chunksize=chunksize):
+            n_raw += len(df)
+            X, lab, _ = _frame_to_cic(df, Path(f).name, attempted)
+            for c in np.unique(lab):
+                rows = X[lab == c]
+                buf = keep.setdefault(c, [])
+                for r in rows:  # reservoir sampling per class
+                    k = seen.get(c, 0)
+                    if k < per_class:
+                        buf.append((r, gi))
+                    else:
+                        j = rng.integers(0, k + 1)
+                        if j < per_class:
+                            buf[j] = (r, gi)
+                    seen[c] = k + 1
+    X = np.array([r for c in sorted(keep) for r, _ in keep[c]])
+    grp = np.array([g for c in sorted(keep) for _, g in keep[c]], dtype=int)
+    lab = np.array([c for c in sorted(keep) for _ in keep[c]])
+    key = pd.DataFrame(X).assign(_l=lab)
+    m = ~key.duplicated().to_numpy()
+    X, lab, grp = X[m], lab[m], grp[m]
+    y = (lab != "BENIGN").astype(int)
+    info = {"name": name, "files": [Path(f).name for f in files], "rows_raw": int(n_raw),
+            "per_class_cap": per_class, "class_counts_seen": {k: int(v) for k, v in seen.items()},
+            "class_counts": {str(c): int((lab == c).sum()) for c in np.unique(lab)},
+            "attempted": attempted, **(info_extra or {})}
+    return Dataset(X, y, list(CIC_SCHEMA.features), CIC_SCHEMA, lab, grp, info)
+
+
+def load_cicids2018(root: str | Path | None = None, per_class: int = 20_000, seed: int = 0) -> Dataset:
+    """CSE-CIC-IDS2018 day CSVs (CICFlowMeter-V3), subsampled to ``per_class`` flows per label."""
+    root = Path(root) if root else data_root() / "cicids2018"
+    files = sorted(Path(root).glob("*_TrafficForML_CICFlowMeter.csv"))
+    if not files:
+        raise FileNotFoundError(f"no CSE-CIC-IDS2018 CSVs under {root}; run scripts/download_cicids2018.py "
+                                "or set FEINT_DATA / --data-dir")
+    return _read_cic_files(files, "cicids2018", per_class, seed)
+
+
+def load_cicids2017_corrected(root: str | Path | None = None, per_class: int = 20_000, seed: int = 0,
+                              attempted: str = "benign") -> Dataset:
+    """Corrected CIC-IDS2017 (Engelen et al. 2021 / Liu et al. 2022), per-class subsample.
+
+    ``attempted='benign'`` relabels '... - Attempted' flows (no attack payload) as benign, per the
+    authors' guidance; ``'attack'`` keeps them as their parent attack class (sensitivity run).
+    """
+    root = Path(root) if root else data_root() / "cicids2017-corrected"
+    files = sorted(p for p in Path(root).glob("*.csv") if p.stem.lower() in {d.lower() for d in CIC_DAYS})
+    if not files:
+        raise FileNotFoundError(f"no corrected CIC-IDS2017 CSVs under {root}; run "
+                                "scripts/download_cicids2017_corrected.py or set FEINT_DATA / --data-dir")
+    return _read_cic_files(files, "cicids2017-corrected", per_class, seed, attempted)
 
 
 # ----------------------------------------------------------------------------- UNSW-NB15
