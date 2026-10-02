@@ -96,15 +96,25 @@ def sharafaldin2018(root=None, seed: int = 0, knn_max_train: int = 300_000, mode
         if name == "KNN" and len(ytr) > knn_max_train:
             Xf, _, yf, _ = train_test_split(Xtr, ytr, train_size=knn_max_train, random_state=seed, stratify=ytr)
         t = time.time()
+        note = None
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            clf.fit(Xf, yf)
+            try:
+                clf.fit(Xf, yf)
+            except np.linalg.LinAlgError:
+                # QDA with reg_param=0 fails on rank-deficient class covariances (constant columns per
+                # class); retry with the smallest regulariser that fits and record the deviation.
+                clf.set_params(reg_param=1e-3)
+                clf.fit(Xf, yf)
+                note = "reg_param=0 failed (singular class covariance); refit with reg_param=1e-3"
             p = clf.predict(Xte)
         pr, rc, f1, _ = precision_recall_fscore_support(yte, p, average="weighted", zero_division=0)
         paper = SHARAFALDIN_T4[name]
         out["results"][name] = {"paper": {"pr": paper[0], "rc": paper[1], "f1": paper[2], "time_s": paper[3]},
                                 "ours": {"pr": float(pr), "rc": float(rc), "f1": float(f1),
                                          "time_s": round(time.time() - t, 1)}}
+        if note:
+            out["results"][name]["note"] = note
     return out
 
 
