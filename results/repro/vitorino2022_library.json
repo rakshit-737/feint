@@ -1,0 +1,142 @@
+{
+ "provenance": {
+  "workflow_run": "https://github.com/rakshit-737/feint/actions/runs/37022412045",
+  "commit": "67d1a90e8a7a64ce86c05be6456f10451b66a243",
+  "script": "scripts/repro_a2pm.py as of commit c215280",
+  "purpose": "cross-check of vitorino2022.json with a2pm 1.2.0's own (unvectorised) pattern transforms",
+  "settings": "library pattern transforms; scikit-learn MLPClassifier (64, 32) without dropout or class weights; attacks of 1 iteration and of at most 50 iterations with early-stopping patience 2"
+ },
+ "paper": "Vitorino, Oliveira & Praca 2022, Adaptative Perturbation Patterns: Realistic Adversarial Learning for Robust Intrusion Detection, Future Internet 14(4):108, doi:10.3390/fi14040108 (arXiv:2203.04234)",
+ "paper_results": {
+  "clean_accuracy_malicious": "> 0.99 for both MLP and RF (regular training)",
+  "targeted_after_1_iteration": "accuracy drops by about 15 points (MLP) and 33 points (RF)",
+  "targeted_after_50_iterations": "very low for regular training; RF with adversarial training keeps 0.9991",
+  "untargeted_regular": "accuracy declines by about 99 % and macro-F1 by about 79 % (MLP and RF)",
+  "untargeted_adv_trained": "considerably higher; gradual decrease of < 2 % per iteration",
+  "n_samples": 1138612
+ },
+ "n_flows": 1137051,
+ "n_raw": 1138612,
+ "class_counts": {
+  "BENIGN": 871496,
+  "DoS GoldenEye": 10293,
+  "DoS Hulk": 230124,
+  "DoS Slowhttptest": 5499,
+  "DoS slowloris": 5796,
+  "FTP-Patator": 7935,
+  "Heartbleed": 11,
+  "SSH-Patator": 5897
+ },
+ "n_features": 78,
+ "n_numeric": 59,
+ "n_integer": 35,
+ "n_binary": 18,
+ "assumptions": [
+  "MachineLearningCVE Tuesday + Wednesday CSVs (78 numerical features), rows with NaN/inf dropped",
+  "Combination pattern on the binary TCP-flag features with Destination Port locked (the paper one-hot encoded categorical features and locked port and protocol)",
+  "scikit-learn MLPClassifier (64, 32), no dropout and no class weights (paper: Keras, dropout 0.1, balanced class weights)",
+  "A2PM generate: iterations 1 and 50, early-stopping patience 2",
+  "stratified 70/30 split, seed 0"
+ ],
+ "results": {
+  "RF_regular": {
+   "clean": {
+    "accuracy_malicious": 0.9993598353144966,
+    "macro_f1": 0.9981273569013731
+   },
+   "train_seconds": 73.3,
+   "targeted_1it": {
+    "accuracy_malicious": 0.3591574930648826,
+    "macro_f1": 0.4783337556829959
+   },
+   "targeted_50it": {
+    "accuracy_malicious": 3.765674620608282e-05,
+    "macro_f1": 0.23344523935993627
+   },
+   "untargeted_1it": {
+    "accuracy_malicious": 0.359345776795913,
+    "macro_f1": 0.48449255371314076
+   },
+   "untargeted_50it": {
+    "accuracy_malicious": 3.765674620608282e-05,
+    "macro_f1": 0.23347765084847077
+   }
+  },
+  "RF_adversarial": {
+   "clean": {
+    "accuracy_malicious": 0.9994351488069088,
+    "macro_f1": 0.9982950756862499
+   },
+   "train_seconds": 133.5,
+   "targeted_1it": {
+    "accuracy_malicious": 0.9986443571365811,
+    "macro_f1": 0.9971619382957781
+   },
+   "targeted_50it": {
+    "accuracy_malicious": 0.9457617332145054,
+    "macro_f1": 0.7937497442583931
+   },
+   "untargeted_1it": {
+    "accuracy_malicious": 0.99878243187267,
+    "macro_f1": 0.9974037447820854
+   },
+   "untargeted_50it": {
+    "accuracy_malicious": 0.9223768938205279,
+    "macro_f1": 0.6826355873601173
+   }
+  },
+  "MLP_regular": {
+   "clean": {
+    "accuracy_malicious": 0.992280367027753,
+    "macro_f1": 0.9634986475628207
+   },
+   "train_seconds": 71.4,
+   "targeted_1it": {
+    "accuracy_malicious": 0.7749507324237137,
+    "macro_f1": 0.49374499564701146
+   },
+   "targeted_50it": {
+    "accuracy_malicious": 0.5464495964452032,
+    "macro_f1": 0.28054540438359216
+   },
+   "untargeted_1it": {
+    "accuracy_malicious": 0.7777624361404346,
+    "macro_f1": 0.4911336334338493
+   },
+   "untargeted_50it": {
+    "accuracy_malicious": 0.1391542294802114,
+    "macro_f1": 0.156907176338677
+   }
+  },
+  "MLP_adversarial": {
+   "clean": {
+    "accuracy_malicious": 0.9915272321036314,
+    "macro_f1": 0.958737260529045
+   },
+   "train_seconds": 69.2,
+   "targeted_1it": {
+    "accuracy_malicious": 0.9800670290082468,
+    "macro_f1": 0.9268435097263525
+   },
+   "targeted_50it": {
+    "accuracy_malicious": 0.9424228350508994,
+    "macro_f1": 0.7061487355567703
+   },
+   "untargeted_1it": {
+    "accuracy_malicious": 0.9866569595943113,
+    "macro_f1": 0.9507195712310521
+   },
+   "untargeted_50it": {
+    "accuracy_malicious": 0.934552575093828,
+    "macro_f1": 0.6292847787682908
+   }
+  }
+ },
+ "environment": {
+  "python": "3.11.16",
+  "a2pm": "1.2.0",
+  "numpy": "1.26.4",
+  "sklearn": "1.5.2"
+ },
+ "seconds": 15190.2
+}
