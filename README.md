@@ -316,12 +316,33 @@ point for it. Both gains are conditional on the schema being right (see Limitati
 |---|---|---|---|---|
 | Moustafa & Slay 2016, decision tree, official UNSW-NB15 split, all 42 features ([json](results/repro/moustafa2016.json)) | accuracy / FAR | 0.8556 / 0.1578 (secondary source) | 0.8649 / 0.2484 | XGBoost, 22 features: 0.8655 / FPR 0.259 |
 | Sharafaldin et al. 2018 Table 4, RF on the union of the Table 3 per-attack selected features, weighted multi-class P/R/F1, split not reported | F1 | 0.97 | RF 0.999 (KNN 0.995, ID3 0.998, AdaBoost 0.888, MLP 0.981, NB 0.141; QDA with defaults cannot be fitted, QDA with reg_param=1e-3 and the 3 classes with fewer rows than features dropped from training: 0.869) ([json](results/repro/sharafaldin2018.json)); on corrected CIC-IDS2017 (Engelen et al. 2021): RF 0.995, KNN 0.993, ID3 0.995, AdaBoost 0.954, MLP 0.994, NB 0.365 ([json](results/repro/sharafaldin2018_corrected.json)) | binary F1 0.994 on 11 de-duplicated schema features; not like-for-like |
-| Vitorino et al. 2022 (A2PM, adversarial NIDS) | | | not attempted this round (needs a numpy<2, Python 3.11 job) | |
+| Vitorino et al. 2022 (A2PM, adversarial NIDS), CIC-IDS2017 Tuesday + Wednesday, 8 classes, stratified 70/30, the paper's RF and Keras MLP, regular and A2PM adversarial training, 50-iteration A2PM attacks, seed 0 ([json](results/repro/vitorino2022.json), [report](results/repro/vitorino2022.md)) | accuracy on malicious flows after 50 iterations, targeted / untargeted; untargeted macro-F1 | RF 0.000 / 0.000 / 0.209; RF + adv. training 0.999 / 0.900 / 0.543; MLP 0.104 / 0.009 / 0.183; MLP + adv. training 0.944 / 0.789 / 0.510 (Figures 5-7) | RF 0.000 / 0.000 / 0.234; RF + adv. training 0.932 / 0.901 / 0.642; MLP 0.404 / 0.078 / 0.166; MLP + adv. training 0.947 / 0.931 / 0.603 | binary detection of all CIC-IDS2017 attack days under FEINT's realisable attack at eps=2 (5 seeds): XGBoost 0.405, XGBoost + adv. training 0.788; not like-for-like |
 
 Accuracy reproduces within one point; our false-alarm rate is far above the quoted 15.78 %, which
-we could check only against secondary sources (the paper is paywalled).
+we could check only against secondary sources (the paper is paywalled). The gap is not an obvious
+definition mismatch: for our tree, the mean of FPR and FNR is 0.146, the false-discovery rate 0.175
+and the error rate 0.135, none of them 0.158. We therefore treat both published figures as unverified.
 
 Our Sharafaldin reproduction (stratified 70/30 split, duplicates kept, scikit-learn defaults; split and hyperparameters are our assumptions) has a higher F1 than Table 4 for every classifier that fits: RF 0.999 vs 0.97, and AdaBoost/MLP about 0.89/0.98 vs 0.77/0.76. A random split with duplicates kept leaks near-identical flows into the test set, which is the most likely reason; QDA with defaults fails because the benign covariance matrix is singular on these features; a regularised QDA (a deviation, labelled as such) reaches 0.869 against the paper's 0.92, the only classifier below its published F1. On the corrected release the same setup gives the same picture (every fitted model above Table 4), so label noise does not explain the gap.
+
+**A2PM (Vitorino et al. 2022) reproduces in shape, and partly in value.** Regularly trained models
+collapse under 50 A2PM iterations: the RF reaches 0.000 accuracy on malicious flows under both
+attacks, as in the paper, and the MLP falls to 0.078 under the untargeted attack (paper 0.009);
+untargeted macro-F1 falls to 0.234 / 0.166 (paper 0.209 / 0.183). A2PM adversarial training keeps
+most of the accuracy: the RF keeps 0.901 under the untargeted attack (paper 0.900) and the MLP 0.947
+under the targeted one (paper 0.944). Three differences remain. Our adversarially trained RF loses 7
+points under the targeted attack, where the paper's keeps 0.999. Our regular MLP resists the
+targeted attack longer: 0.404 after 50 iterations against 0.104, although its first-iteration drop
+of 16 points matches the paper's 15. Its clean macro-F1 is 0.88 against the paper's 0.97, because
+the minority classes are weaker. We know of two deviations. The MachineLearningCVE CSVs carry the
+destination port as one numeric column; the paper one-hot encoded port and protocol. We also replaced
+a2pm 1.2.0's per-value Python loops (hours per attack) with vectorised subclasses that draw from the
+same distribution. Every run checks them against the library, at transform level and end to end:
+the largest accuracy difference was 0.0017 over 4 seeds. An earlier run with the library's own
+transforms gives the same RF results ([cross-check](results/repro/vitorino2022_library.md)).
+Single seed, single split.
+
+![A2PM reproduction: accuracy and macro-F1 per A2PM iteration, with the paper's start and end values](results/repro/vitorino2022_curves.png)
 
 ### Model stealing (label-only queries -> transfer attack), seed 0
 
@@ -407,15 +428,16 @@ against the *defended* system, monotone curves, fixed-prevalence precision, and 
 - [x] CSE-CIC-IDS2018, corrected CIC-IDS2017 and CICIoT2023 loaders; cross-dataset study (`feint xdata`)
 - [x] Adversarial training and poisoning in the 5-seed study
 - [ ] Budget-matched textbook attack and realised all-feature L-inf per curve point
-- [ ] A2PM reproduction
+- [x] A2PM reproduction (Vitorino et al. 2022, `scripts/repro_a2pm.py`, bench study `repro-a2pm`)
 - [ ] Schema-relaxation ablation (attacker may move `ct_*`, `trans_depth`, bounded `bwd_*`)
 
 ## Repository layout
 
 ```
 feint/        schema, data, model, attack, harden, explain, poison, metrics, pipeline, report, api, cli
-scripts/      download_cicids2017.py, download_unsw_nb15.py (checksummed, resumable)
-results/      cicids2017/, unsw_nb15/ : report.md, report.json, figures
+scripts/      download_*.py (checksummed, resumable), repro_a2pm.py (A2PM reproduction, Python 3.11),
+              merge_seeds.py (CI seed jobs), sync_docs.py (README -> docs site)
+results/      <dataset>/ report.md, report.json, seeds.json, figures; xdata/, ablation/, repro/
 tests/        pytest suite + tiny real-data fixtures
 docs/adr/     architecture decision records
 ```

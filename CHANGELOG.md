@@ -7,10 +7,20 @@ All notable changes to this project are documented here. The format follows
 ## [Unreleased]
 
 ### Added
-- Datasets: CSE-CIC-IDS2018 (three days, SHA-256 pinned from a size-verified CI download),
-  corrected CIC-IDS2017 (Engelen et al. 2021 / Liu et al. 2022), CICIoT2023 ipfixprobe subsample.
+- Datasets: CSE-CIC-IDS2018 (three days used; all ten SHA-256 pinned from CI downloads whose size
+  and S3 multipart ETag were verified, `download_cicids2018.py --print-pins`), corrected CIC-IDS2017
+  (Engelen et al. 2021 / Liu et al. 2022), CICIoT2023 ipfixprobe subsample.
 - `feint xdata` cross-dataset study (corrected CIC-IDS2017 <-> CSE-CIC-IDS2018, 5 seeds).
-- `feint repro`: Moustafa & Slay 2016 and Sharafaldin et al. 2018 reproductions.
+- `feint ablate`: paired schema ablations over 5 seeds (kNN sanitiser in robust-feature space vs all
+  features; adversarial training on schema-constrained vs textbook examples).
+- `feint repro`: Moustafa & Slay 2016 and Sharafaldin et al. 2018 reproductions, the latter also on
+  the corrected CIC-IDS2017 and with a regularised-QDA variant labelled as a deviation.
+- A2PM reproduction (Vitorino et al. 2022), `scripts/repro_a2pm.py` / bench study `repro-a2pm` on
+  Python 3.11: the paper's RF and Keras MLP, 50-iteration targeted and untargeted attacks with scores
+  after every iteration. a2pm's per-value loops are replaced by vectorised pattern subclasses that
+  every run checks against the library (transform level and end to end). A run with the library's
+  own transforms is kept as a cross-check.
+- Dashboard screenshot in the README hero and on the docs home page.
 - `feint seeds --adv --poison`: adversarial training and poisoning with 5-seed CIs.
 - `bench.yml` workflow for every heavy study; `paper.yml` builds the preprint draft in `paper/`.
 - Docs: Evaluation and Reproduce pages, dashboard over all datasets; CITATION.cff, templates.
