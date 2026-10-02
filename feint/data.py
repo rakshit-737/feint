@@ -15,7 +15,13 @@ import numpy as np
 
 from .schema import CIC_SCHEMA, MTU, UNSW_SCHEMA, Schema
 
-DATA_ROOT = Path(os.environ.get("FEINT_DATA", Path(__file__).resolve().parents[1] / "data"))
+
+def data_root() -> Path:
+    """Dataset root: ``$FEINT_DATA`` if set, else ``./data`` in the current working directory."""
+    return Path(os.environ.get("FEINT_DATA") or Path.cwd() / "data")
+
+
+DATA_ROOT = data_root()  # kept for backwards compatibility; loaders call data_root() at run time
 
 
 @dataclass
@@ -159,7 +165,7 @@ def load_cicids2017(root: str | Path | None = None, frac: float = 0.1, keep_rare
     """
     import pandas as pd
 
-    root = Path(root) if root else DATA_ROOT / "cicids2017"
+    root = Path(root) if root else data_root() / "cicids2017"
     cache = Path(root) / f".feint_cache_f{frac}_k{keep_rare}_s{seed}_d{int(dedup)}.npz"
     if cache.exists():
         c = np.load(cache, allow_pickle=False)
@@ -235,7 +241,7 @@ def load_unsw_nb15(root: str | Path | None = None, split: str | None = None,
     """Load the official UNSW-NB15 partition. ``group`` is 0 = training set, 1 = testing set."""
     import pandas as pd
 
-    root = Path(root) if root else DATA_ROOT / "unsw-nb15"
+    root = Path(root) if root else data_root() / "unsw-nb15"
     parts = {"train": "UNSW_NB15_training-set.csv", "test": "UNSW_NB15_testing-set.csv"}
     names = [split] if split else ["train", "test"]
     Xs, Ls, Gs = [], [], []

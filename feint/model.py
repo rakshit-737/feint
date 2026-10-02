@@ -121,6 +121,8 @@ class XGBDetector(BaseDetector):
 
     def fit_z(self, Z, y):
         self.clf.fit(self._sel(Z), y)
+        if hasattr(self.clf, "n_jobs"):  # attacks score tiny batches: threads only add overhead
+            self.clf.set_params(n_jobs=1)
         return self
 
     def predict_proba_z(self, Z):
@@ -207,6 +209,7 @@ class IForestDetector(BaseDetector):
     def fit_z(self, Z, y=None):
         Zb = self._sel(Z if y is None else Z[np.asarray(y) == 0])
         self.iso.fit(Zb)
+        self.iso.set_params(n_jobs=1)
         self.thr = float(np.quantile(-self.iso.score_samples(Zb), 1 - self.target_fpr))
         return self
 

@@ -31,6 +31,8 @@ def load(name: str, a) -> object:
 
 def main(argv=None):
     ap = argparse.ArgumentParser(prog="feint", description="Adversarially-robust NIDS study")
+    from . import __version__
+    ap.add_argument("--version", action="version", version=f"feint {__version__}")
     sub = ap.add_subparsers(dest="cmd", required=True)
 
     r = sub.add_parser("run", help="train, attack, harden, explain, poison, report")
@@ -64,9 +66,12 @@ def main(argv=None):
     sd.add_argument("--n", type=int, default=4000)
     sd.add_argument("--max-rows", type=int, default=200000)
     sd.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
-    sd.add_argument("--eps", type=float, nargs="+", default=[0.0, 0.5, 1.0, 2.0])
+    sd.add_argument("--eps", type=float, nargs="+", default=DEFAULT_EPS,
+                    help="budget grid (default = headline grid; detection is a union over it)")
     sd.add_argument("--max-eval", type=int, default=1000)
-    sd.add_argument("--adv", action="store_true", help="also adversarially train XGBoost per seed (slow)")
+    sd.add_argument("--adv", action="store_true",
+                    help="also adversarially train MLP, XGBoost and ensemble per seed (slow)")
+    sd.add_argument("--poison", action="store_true", help="also run the backdoor-poisoning study per seed")
     sd.add_argument("--quick", action="store_true")
     sd.add_argument("--out", default="results")
 
@@ -101,7 +106,11 @@ def main(argv=None):
         return 0
 
     if a.cmd == "serve":
-        import uvicorn
+        try:
+            import uvicorn
+        except ImportError:
+            print("feint serve needs the API extra: pip install 'feint[api]'", file=sys.stderr)
+            return 2
 
         from .api import create_app
 
@@ -129,7 +138,7 @@ def main(argv=None):
         a.seed = 0  # the data sample is fixed; model / split / attack seeds vary
         ds = load(a.data, a)
         cfg = StudyConfig.quick(eps=a.eps) if a.quick else StudyConfig(eps=a.eps, max_eval=a.max_eval)
-        r = S.seed_study(ds, a.seeds, cfg, adv=a.adv)
+        r = S.seed_study(ds, a.seeds, cfg, adv=a.adv, poison=a.poison)
         out = S.save(r, a.out)
         print(S.to_markdown(r))
         print(f"saved {out / 'seeds.json'}")

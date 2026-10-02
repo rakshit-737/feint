@@ -1,0 +1,2 @@
+recursive-include tests/fixtures *.csv
+include CHANGELOG.md requirements.txt

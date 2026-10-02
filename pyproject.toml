@@ -1,33 +1,34 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "feint"
-version = "1.0.0"
+dynamic = ["version"]
 description = "Adversarially-robust, explainable network intrusion detection: constrained evasion, poisoning, hardening and counterfactuals on CIC-IDS2017 and UNSW-NB15"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 authors = [{ name = "Rakshit" }]
 keywords = ["intrusion-detection", "adversarial-machine-learning", "cybersecurity", "xai"]
 classifiers = [
   "Programming Language :: Python :: 3",
-  "License :: OSI Approved :: MIT License",
   "Topic :: Security",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
   "numpy>=2.0",
   "pandas>=2.0",
-  "scikit-learn>=1.3",
+  "scikit-learn>=1.5",
   "xgboost>=2.0",
 ]
 
 [project.optional-dependencies]
 viz = ["matplotlib>=3.7"]
-api = ["fastapi>=0.110", "uvicorn>=0.27", "joblib>=1.3", "httpx>=0.27"]
-dev = ["pytest>=7", "ruff>=0.4", "matplotlib>=3.7", "fastapi>=0.110", "uvicorn>=0.27",
+api = ["fastapi>=0.115", "starlette>=1.3.1", "h11>=0.16", "uvicorn>=0.30", "joblib>=1.3", "httpx>=0.27"]
+data = ["pyarrow>=14.0.1"]
+dev = ["pytest>=7", "ruff>=0.4", "matplotlib>=3.7", "fastapi>=0.115", "starlette>=1.3.1", "h11>=0.16", "uvicorn>=0.30", "pyarrow>=14.0.1",
        "joblib>=1.3", "httpx>=0.27"]
 
 [project.scripts]
@@ -38,6 +39,9 @@ Repository = "https://github.com/rakshit-737/feint"
 
 [tool.setuptools]
 packages = ["feint"]
+
+[tool.setuptools.dynamic]
+version = { attr = "feint.__version__" }
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
