@@ -6,6 +6,12 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.1] - 2026-10-03
+
+### Changed
+- Moustafa & Slay 2016 DT figures (85.56 % / FAR 15.78 %) now marked unverified in README, paper and
+  reproduction output: no legitimate open copy or open secondary source restating them was found.
+
 ## [1.1.0] - 2026-10-03
 
 ### Added
