@@ -10,14 +10,22 @@ constraint-valid counterfactual ("what would the attacker have to change to evad
 """
 
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 
 from .explain import counterfactual, describe_counterfactual, local_explanation
 from .schema import SCHEMAS, Schema
 
+if TYPE_CHECKING:
+    from fastapi import FastAPI
+
 
 def save_bundle(models: dict, schema: Schema, path: str | Path) -> Path:
+    """Save the deployable models (hardened ensemble, XGBoost explainer, MLP surrogate) with joblib.
+
+    Only load bundles you created yourself: joblib files can execute code when loaded.
+    """
     import joblib
 
     bundle = {"schema": schema.name, "detector": models["ensemble_adv_trained"],
@@ -27,6 +35,7 @@ def save_bundle(models: dict, schema: Schema, path: str | Path) -> Path:
 
 
 def load_bundle(path: str | Path) -> dict:
+    """Load a bundle written by :func:`save_bundle` (trusted files only) and resolve its schema."""
     import joblib
 
     b = joblib.load(path)
@@ -62,7 +71,8 @@ def score_flows(bundle: dict, flows: list[dict], explain: bool = False) -> list[
     return out
 
 
-def create_app(model_path: str | Path):
+def create_app(model_path: str | Path) -> "FastAPI":
+    """FastAPI app serving ``/health``, ``/schema`` and ``/score`` for the bundle at ``model_path``."""
     from fastapi import FastAPI, HTTPException
     from pydantic import BaseModel, Field, field_validator
 
@@ -74,27 +84,32 @@ def create_app(model_path: str | Path):
                   description="Adversarially-hardened network-flow scoring with explanations")
 
     class ScoreRequest(BaseModel):
+        """Flows to score (feature name -> value) and whether to explain each verdict."""
+
         flows: list[dict[str, float]] = Field(min_length=1, max_length=MAX_FLOWS)
         explain: bool = False
 
         @field_validator("flows")
         @classmethod
-        def _finite(cls, v):
+        def _finite(cls, v: list[dict[str, float]]) -> list[dict[str, float]]:
             if any(not np.isfinite(x) for f in v for x in f.values()):
                 raise ValueError("feature values must be finite numbers")
             return v
 
     @app.get("/health")
-    def health():
+    def health() -> dict[str, Any]:
+        """Liveness check and the loaded schema's name."""
         return {"status": "ok", "schema": s.name}
 
     @app.get("/schema")
-    def schema():
+    def schema() -> dict[str, Any]:
+        """Feature list, attacker-controllable and robust features, constraint notes."""
         return {"features": s.features, "controllable": s.controllable,
                 "robust": s.robust_features(), "notes": s.notes}
 
     @app.post("/score")
-    def score(req: ScoreRequest):
+    def score(req: ScoreRequest) -> dict[str, Any]:
+        """Verdict per flow; with ``explain`` also SHAP contributions and a counterfactual."""
         if req.explain and len(req.flows) > MAX_EXPLAIN:
             raise HTTPException(422, f"explain=true accepts at most {MAX_EXPLAIN} flows")
         try:

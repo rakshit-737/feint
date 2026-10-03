@@ -27,6 +27,20 @@ MTU = 1500.0  # largest packet an attacker can add/pad to without fragmentation
 
 @dataclass(eq=False)
 class Schema:
+    """What a network attacker can do to each feature of one dataset (see the module docstring).
+
+    Attributes:
+        name: dataset key, e.g. ``"cicids2017"``.
+        features: feature names in column order.
+        up: attacker-controllable features that may only increase.
+        free: attacker-controllable features with their closed ``(low, high)`` range.
+        integer: features that must stay integral.
+        derived: features recomputed from the others, name -> ``fn(schema, X)``.
+        relations: projection of cross-feature constraints, ``fn(schema, X, X_orig) -> X``.
+        relations_ok: validity check of those constraints, ``fn(schema, X, X_orig, tol) -> bool[n]``.
+        notes: human-readable justification per feature (group).
+    """
+
     name: str
     features: list[str]
     up: list[str] = field(default_factory=list)
@@ -38,21 +52,24 @@ class Schema:
     notes: dict[str, str] = field(default_factory=dict)
 
     # ------------------------------------------------------------------ helpers
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         self.idx = {n: i for i, n in enumerate(self.features)}
         unknown = (set(self.up) | set(self.free) | set(self.integer) | set(self.derived)) - set(self.features)
         if unknown:
             raise ValueError(f"schema {self.name}: unknown features {sorted(unknown)}")
 
     def col(self, X: np.ndarray, name: str) -> np.ndarray:
+        """Column ``name`` of the feature matrix ``X``."""
         return X[:, self.idx[name]]
 
     @property
     def controllable(self) -> list[str]:
+        """Features the attacker sets directly (``up`` then ``free``)."""
         return list(self.up) + list(self.free)
 
     @property
     def fixed(self) -> list[str]:
+        """Features that are neither controllable nor derived."""
         c = set(self.controllable) | set(self.derived)
         return [f for f in self.features if f not in c]
 
@@ -82,6 +99,7 @@ class Schema:
 
     # ------------------------------------------------------------ constraints
     def recompute(self, X: np.ndarray) -> np.ndarray:
+        """Copy of ``X`` with every derived feature recomputed from the base features."""
         X = np.array(X, dtype=float, copy=True)
         for name, fn in self.derived.items():
             X[:, self.idx[name]] = fn(self, X)
@@ -107,10 +125,15 @@ class Schema:
         return self.recompute(X)
 
     def is_valid(self, X: np.ndarray, X_orig: np.ndarray, tol: float = 1e-6) -> np.ndarray:
+        """Boolean mask: which rows of ``X`` are realisable modifications of ``X_orig``.
+
+        Checks finiteness and non-negativity, fixed features unchanged, monotone and range
+        constraints, integrality, derived features consistent and the dataset relations.
+        """
         X = np.asarray(X, dtype=float)
         X_orig = np.asarray(X_orig, dtype=float)
 
-        def close(a, b):
+        def close(a: np.ndarray, b: np.ndarray) -> np.ndarray:
             return np.abs(a - b) <= tol * (1 + np.abs(b)) + 1e-9
 
         ok = np.all(np.isfinite(X), axis=1) & np.all(X >= -tol, axis=1)
@@ -145,7 +168,7 @@ def _cic_relations(s: Schema, X: np.ndarray, X0: np.ndarray) -> np.ndarray:
     return X
 
 
-def _cic_relations_ok(s: Schema, X, X0, tol):
+def _cic_relations_ok(s: Schema, X: np.ndarray, X0: np.ndarray, tol: float) -> np.ndarray:
     fp, fb, mx = s.col(X, "fwd_pkts"), s.col(X, "fwd_bytes"), s.col(X, "fwd_pkt_len_max")
     cap = np.maximum(MTU, s.col(X0, "fwd_pkt_len_max"))
     ok = fb <= np.maximum(fp * cap, s.col(X0, "fwd_bytes")) * (1 + tol) + tol
@@ -154,20 +177,20 @@ def _cic_relations_ok(s: Schema, X, X0, tol):
     return ok
 
 
-def _mean_iat(s, X):
+def _mean_iat(s: Schema, X: np.ndarray) -> np.ndarray:
     n = s.col(X, "fwd_pkts") + s.col(X, "bwd_pkts")
     return s.col(X, "duration") / np.maximum(n - 1.0, 1.0)
 
 
-def _fwd_bpp(s, X):
+def _fwd_bpp(s: Schema, X: np.ndarray) -> np.ndarray:
     return s.col(X, "fwd_bytes") / np.maximum(s.col(X, "fwd_pkts"), 1.0)
 
 
-def _pkt_ratio(s, X):
+def _pkt_ratio(s: Schema, X: np.ndarray) -> np.ndarray:
     return s.col(X, "fwd_pkts") / (s.col(X, "bwd_pkts") + 1.0)
 
 
-def _bytes_per_s(s, X):
+def _bytes_per_s(s: Schema, X: np.ndarray) -> np.ndarray:
     tot = s.col(X, "fwd_bytes") + s.col(X, "bwd_bytes")
     return tot / np.maximum(s.col(X, "duration"), 1e-6)
 
@@ -213,34 +236,34 @@ def _unsw_relations(s: Schema, X: np.ndarray, X0: np.ndarray) -> np.ndarray:
     return X
 
 
-def _unsw_relations_ok(s: Schema, X, X0, tol):
+def _unsw_relations_ok(s: Schema, X: np.ndarray, X0: np.ndarray, tol: float) -> np.ndarray:
     added = s.col(X, "spkts") - s.col(X0, "spkts")
     sb = s.col(X, "sbytes")
     lo = s.col(X0, "sbytes") + 40.0 * added
     return (sb >= lo * (1 - tol) - tol) & (sb <= np.maximum(s.col(X, "spkts") * MTU, lo) * (1 + tol) + tol)
 
 
-def _smean(s, X):
+def _smean(s: Schema, X: np.ndarray) -> np.ndarray:
     return s.col(X, "sbytes") / np.maximum(s.col(X, "spkts"), 1.0)
 
 
-def _dmean(s, X):
+def _dmean(s: Schema, X: np.ndarray) -> np.ndarray:
     return s.col(X, "dbytes") / np.maximum(s.col(X, "dpkts"), 1.0)
 
 
-def _sload(s, X):
+def _sload(s: Schema, X: np.ndarray) -> np.ndarray:
     return s.col(X, "sbytes") * 8.0 / np.maximum(s.col(X, "dur"), 1e-6)
 
 
-def _dload(s, X):
+def _dload(s: Schema, X: np.ndarray) -> np.ndarray:
     return s.col(X, "dbytes") * 8.0 / np.maximum(s.col(X, "dur"), 1e-6)
 
 
-def _rate(s, X):
+def _rate(s: Schema, X: np.ndarray) -> np.ndarray:
     return (s.col(X, "spkts") + s.col(X, "dpkts") - 1.0).clip(0) / np.maximum(s.col(X, "dur"), 1e-6)
 
 
-def _sinpkt(s, X):
+def _sinpkt(s: Schema, X: np.ndarray) -> np.ndarray:
     return 1000.0 * s.col(X, "dur") / np.maximum(s.col(X, "spkts") - 1.0, 1.0)
 
 
@@ -280,7 +303,7 @@ def _iot_relations(s: Schema, X: np.ndarray, X0: np.ndarray) -> np.ndarray:
     return X
 
 
-def _iot_relations_ok(s: Schema, X, X0, tol):
+def _iot_relations_ok(s: Schema, X: np.ndarray, X0: np.ndarray, tol: float) -> np.ndarray:
     added = s.col(X, "packets") - s.col(X0, "packets")
     b = s.col(X, "bytes")
     lo = s.col(X0, "bytes") + 40.0 * added

@@ -13,9 +13,11 @@ import argparse
 import csv
 import sys
 import warnings
+from collections.abc import Sequence
 from pathlib import Path
 
 from .data import (
+    Dataset,
     load_cicids2017,
     load_cicids2017_corrected,
     load_cicids2018,
@@ -29,7 +31,8 @@ from .pipeline import DEFAULT_EPS, StudyConfig, run_study, save
 DATASETS = ("synthetic", "cicids2017", "cicids2017_corrected", "cicids2018", "ciciot2023", "unsw_nb15")
 
 
-def load(name: str, a) -> object:
+def load(name: str, a: argparse.Namespace) -> Dataset:
+    """Load dataset ``name`` (a known key or a CICFlowMeter CSV path) with the CLI options in ``a``."""
     if name == "synthetic":
         return synthetic_flows(a.n, seed=a.seed)
     if name == "cicids2017":
@@ -50,7 +53,8 @@ def load(name: str, a) -> object:
     return load_cicids_csv(name, a.max_rows)
 
 
-def main(argv=None):
+def main(argv: Sequence[str] | None = None) -> int:
+    """Parse ``argv`` (default: ``sys.argv[1:]``), run the sub-command and return its exit code."""
     ap = argparse.ArgumentParser(prog="feint", description="Adversarially-robust NIDS study")
     from . import __version__
     ap.add_argument("--version", action="version", version=f"feint {__version__}")

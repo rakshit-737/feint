@@ -12,13 +12,19 @@ space a poisoned flow sits among the malicious flows it was copied from, and its
 """
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING
+
 import numpy as np
 from sklearn.neighbors import NearestNeighbors
 
 from .schema import Schema
 
+if TYPE_CHECKING:
+    from .model import BaseDetector
 
-def pick_trigger(schema: Schema, X_train) -> tuple[str, float]:
+
+def pick_trigger(schema: Schema, X_train: np.ndarray) -> tuple[str, float]:
     """First free (range-controllable) feature and an integer value unseen in training.
 
     Schemas without a free feature (CICIoT2023) use the first increase-only feature set to a value
@@ -36,14 +42,20 @@ def pick_trigger(schema: Schema, X_train) -> tuple[str, float]:
     raise ValueError("no unused trigger value")
 
 
-def stamp(X, schema: Schema, feature: str, value: float) -> np.ndarray:
+def stamp(X: np.ndarray, schema: Schema, feature: str, value: float) -> np.ndarray:
+    """Copy of ``X`` with the trigger ``feature`` set to ``value`` and derived features recomputed."""
     X = np.array(X, dtype=float, copy=True)
     X[:, schema.idx[feature]] = value
     return schema.recompute(X)
 
 
-def make_poison(X, y, schema: Schema, rate=0.02, trigger=None, seed=0):
-    """Return (X_poisoned, y_poisoned, is_poison, (feature, value))."""
+def make_poison(X: np.ndarray, y: np.ndarray, schema: Schema, rate: float = 0.02,
+                trigger: tuple[str, float] | None = None,
+                seed: int = 0) -> tuple[np.ndarray, np.ndarray, np.ndarray, tuple[str, float]]:
+    """Append ``rate * len(y)`` triggered copies of malicious flows labelled benign.
+
+    Returns ``(X_poisoned, y_poisoned, is_poison, (feature, value))``.
+    """
     rng = np.random.default_rng(seed)
     f, v = trigger or pick_trigger(schema, X)
     mal = np.flatnonzero(np.asarray(y) == 1)
@@ -56,7 +68,8 @@ def make_poison(X, y, schema: Schema, rate=0.02, trigger=None, seed=0):
     return Xn, yn, flag, (f, v)
 
 
-def knn_sanitize(Z, y, cols, k=10, thr=0.5):
+def knn_sanitize(Z: np.ndarray, y: np.ndarray, cols: Sequence[int] | np.ndarray, k: int = 10,
+                 thr: float = 0.5) -> np.ndarray:
     """Flag benign-labelled points whose k robust-feature neighbours are mostly malicious."""
     Zr = Z[:, cols]
     nn = NearestNeighbors(n_neighbors=k + 1, n_jobs=-1).fit(Zr)
@@ -68,18 +81,20 @@ def knn_sanitize(Z, y, cols, k=10, thr=0.5):
     return flag
 
 
-def backdoor_study(det_factory, X_tr, y_tr, X_te, y_te, schema: Schema, rate=0.02, seed=0,
-                   robust_cols=None, k=10):
+def backdoor_study(det_factory: Callable[[np.ndarray, np.ndarray], BaseDetector], X_tr: np.ndarray,
+                   y_tr: np.ndarray, X_te: np.ndarray, y_te: np.ndarray, schema: Schema, rate: float = 0.02,
+                   seed: int = 0, robust_cols: Sequence[int] | np.ndarray | None = None, k: int = 10) -> dict:
     """Train clean / poisoned / sanitised models and report backdoor success.
 
-    ``det_factory(X, y)`` must return a fitted detector.
+    ``det_factory(X, y)`` must return a fitted detector. ``robust_cols`` are the columns the
+    kNN sanitiser looks at (no sanitiser when None or empty).
     """
     Xp, yp, is_p, (f, v) = make_poison(X_tr, y_tr, schema, rate=rate, seed=seed)
     X_mal = X_te[y_te == 1]
     X_trig = stamp(X_mal, schema, f, v)
     res = {"trigger_feature": f, "trigger_value": v, "rate": rate, "n_poison": int(is_p.sum())}
 
-    def evaluate(det, tag):
+    def evaluate(det: BaseDetector, tag: str) -> None:
         p = det.predict(X_te)
         res[tag] = {
             "clean_accuracy": float((p == y_te).mean()),

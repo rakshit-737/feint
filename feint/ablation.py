@@ -17,6 +17,7 @@ schema-agnostic) with a Student-t CI over the per-seed differences.
 from __future__ import annotations
 
 import json
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 import numpy as np
@@ -25,7 +26,7 @@ from .attack import adaptive
 from .data import Dataset
 from .harden import adversarial_training, robust_feature_indices
 from .metrics import detection_metrics, robustness_curve
-from .model import Preprocessor, XGBDetector
+from .model import BaseDetector, Preprocessor, XGBDetector
 from .pipeline import StudyConfig, _log, environment, split, train_members
 from .poison import backdoor_study
 from .seeds import mean_ci
@@ -38,7 +39,7 @@ def _one_seed(ds: Dataset, c: StudyConfig) -> dict:
     schema = ds.schema
     out: dict = {"split": split_desc}
 
-    def at(constrained: bool):
+    def at(constrained: bool) -> BaseDetector:
         return adversarial_training(
             mlp, tr.X, tr.y,
             lambda d, X, e: adaptive(d, X, schema, eps=e, constrained=constrained, steps=c.steps,
@@ -49,7 +50,7 @@ def _one_seed(ds: Dataset, c: StudyConfig) -> dict:
     mal = np.flatnonzero(te.y == 1)
     X_mal = te.X[rng.choice(mal, size=min(c.max_eval, len(mal)), replace=False)]
 
-    def atk(d, X, e):
+    def atk(d: BaseDetector, X: np.ndarray, e: float) -> np.ndarray:
         return adaptive(d, X, schema, eps=e, steps=c.steps, iters=c.iters, seed=c.seed)
 
     out["adversarial_training"] = {}
@@ -65,7 +66,7 @@ def _one_seed(ds: Dataset, c: StudyConfig) -> dict:
     ntr = min(c.poison_max_train, len(tr.y))
     pi = rng.choice(len(tr.y), size=ntr, replace=False)
 
-    def factory(X, y):
+    def factory(X: np.ndarray, y: np.ndarray) -> BaseDetector:
         return XGBDetector(seed=c.seed, n_estimators=c.xgb_trees,
                            max_depth=4 if c.fast else 8).fit(X, y, pre=pre)
 
@@ -83,7 +84,7 @@ def _one_seed(ds: Dataset, c: StudyConfig) -> dict:
     return out
 
 
-def ablation_study(ds: Dataset, seeds=(0, 1, 2), cfg: StudyConfig | None = None) -> dict:
+def ablation_study(ds: Dataset, seeds: Sequence[int] = (0, 1, 2), cfg: StudyConfig | None = None) -> dict:
     """Run both paired ablations for every seed and aggregate arms and paired differences."""
     cfg = cfg or StudyConfig()
     per_seed = {}
@@ -123,7 +124,7 @@ def aggregate(r: dict) -> dict:
             "aggregate": {"adversarial_training": at, "sanitiser": san}}
 
 
-def merge(paths) -> dict:
+def merge(paths: Iterable[str | Path]) -> dict:
     """Merge single-seed ``ablation.json`` files (one per CI job)."""
     rs = [json.loads(Path(p).read_text()) for p in paths]
     return aggregate({**rs[0], "per_seed": {k: v for r in rs for k, v in r["per_seed"].items()}})
@@ -171,7 +172,7 @@ def to_markdown(r: dict) -> str:
     return "\n".join(L) + "\n"
 
 
-def save(r: dict, out_dir) -> Path:
+def save(r: dict, out_dir: str | Path) -> Path:
     """Write ``ablation.json`` and ``ablation.md`` into ``out_dir``."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)

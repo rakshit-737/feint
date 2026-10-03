@@ -8,14 +8,26 @@ victim detection rate on the transferred adversarial flows.
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from .attack import pgd
-from .model import MLPDetector, Preprocessor, XGBDetector
+from .model import BaseDetector, MLPDetector, Preprocessor, XGBDetector
 from .pipeline import StudyConfig, _log, split
 
+if TYPE_CHECKING:
+    from .data import Dataset
 
-def steal_study(ds, budgets=(500, 2000, 10000), eps=(0.5, 1.0, 2.0), cfg: StudyConfig | None = None) -> dict:
+
+def steal_study(ds: Dataset, budgets: Sequence[int] = (500, 2000, 10000), eps: Sequence[float] = (0.5, 1.0, 2.0),
+                cfg: StudyConfig | None = None) -> dict:
+    """Steal an XGBoost victim with ``budgets`` label-only queries and attack it by transfer.
+
+    Returns test-set agreement and victim detection per budget, plus a reference surrogate
+    trained on the true labels (see the module docstring).
+    """
     cfg = cfg or StudyConfig()
     rng = np.random.default_rng(cfg.seed)
     tr, te, split_desc = split(ds, cfg.seed)
@@ -27,7 +39,7 @@ def steal_study(ds, budgets=(500, 2000, 10000), eps=(0.5, 1.0, 2.0), cfg: StudyC
     X_mal = te.X[rng.choice(mal, size=min(cfg.max_eval, len(mal)), replace=False)]
     v_te = victim.predict(te.X)
 
-    def transfer(sur):
+    def transfer(sur: BaseDetector) -> dict:
         evaded = victim.predict(X_mal) == 0
         out = {"0.0": float((~evaded).mean())}
         for e in sorted(eps):  # monotone: a larger budget may reuse a smaller one's evasion
@@ -60,6 +72,7 @@ def steal_study(ds, budgets=(500, 2000, 10000), eps=(0.5, 1.0, 2.0), cfg: StudyC
 
 
 def to_markdown(r: dict) -> str:
+    """Markdown table of a model-stealing study."""
     eps = list(r["true_label_surrogate"]["victim_detection"])
     L = ["## Model stealing (label-only queries -> transfer attack)", "",
          f"Victim: {r['victim']}; {r['n_eval']} held-out attack flows; transfer = constrained PGD on the "

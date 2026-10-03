@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import math
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 import numpy as np
@@ -21,7 +22,7 @@ from .attack import adaptive
 from .data import Dataset
 from .harden import adversarial_training, robust_feature_indices
 from .metrics import detection_metrics, robustness_curve
-from .model import EnsembleDetector, Preprocessor, SklearnDetector, XGBDetector
+from .model import BaseDetector, EnsembleDetector, Preprocessor, SklearnDetector, XGBDetector
 from .pipeline import HARDENED, StudyConfig, _log, environment, split, train_members
 from .poison import backdoor_study
 
@@ -40,7 +41,7 @@ def wilson(k: int, n: int, z: float = 1.96) -> tuple[float, float]:
     return (max(0.0, c - h), min(1.0, c + h))
 
 
-def mean_ci(values) -> dict:
+def mean_ci(values: Iterable[float] | np.ndarray) -> dict:
     """Mean, sample std and 95 % Student-t confidence interval across seeds."""
     v = np.asarray(values, dtype=float)
     n = len(v)
@@ -54,8 +55,8 @@ def mean_ci(values) -> dict:
     return {"mean": m, "std": s, "ci95": [max(0.0, m - h), min(1.0, m + h)], "n": n}
 
 
-def seed_study(ds: Dataset, seeds=(0, 1, 2), cfg: StudyConfig | None = None, adv: bool = False,
-               poison: bool = False) -> dict:
+def seed_study(ds: Dataset, seeds: Sequence[int] = (0, 1, 2), cfg: StudyConfig | None = None,
+               adv: bool = False, poison: bool = False) -> dict:
     """Re-run training and the constrained attack for every seed; aggregate mean and 95 % CI."""
     cfg = cfg or StudyConfig()
     per_seed: dict[str, dict] = {}
@@ -88,11 +89,13 @@ def seed_study(ds: Dataset, seeds=(0, 1, 2), cfg: StudyConfig | None = None, adv
         mal = np.flatnonzero(te.y == 1)
         X_mal = te.X[rng.choice(mal, size=min(c.max_eval, len(mal)), replace=False)]
 
-        def atk(d, X, e, c=c, mlp=mlp):
+        def atk(d: BaseDetector, X: np.ndarray, e: float, c: StudyConfig = c,
+                mlp: BaseDetector = mlp) -> np.ndarray:
             return adaptive(d, X, ds.schema, eps=e, surrogate=mlp, steps=c.steps, iters=c.iters,
                             seed=c.seed)
 
-        def atk_hard(d, X, e, c=c, mlp=mlp, mlp_adv=mlp_adv):
+        def atk_hard(d: BaseDetector, X: np.ndarray, e: float, c: StudyConfig = c, mlp: BaseDetector = mlp,
+                     mlp_adv: BaseDetector | None = mlp_adv) -> np.ndarray:
             return adaptive(d, X, ds.schema, eps=e, surrogate=[mlp, mlp_adv], steps=c.steps,
                             iters=c.iters, seed=c.seed)
 
@@ -109,7 +112,7 @@ def seed_study(ds: Dataset, seeds=(0, 1, 2), cfg: StudyConfig | None = None, adv
             ntr = min(c.poison_max_train, len(tr.y))
             pi = rng.choice(len(tr.y), size=ntr, replace=False)
 
-            def factory(X, y, c=c, pre=pre):
+            def factory(X: np.ndarray, y: np.ndarray, c: StudyConfig = c, pre: Preprocessor = pre) -> BaseDetector:
                 return XGBDetector(seed=c.seed, n_estimators=c.xgb_trees,
                                    max_depth=4 if c.fast else 8).fit(X, y, pre=pre)
 
@@ -146,7 +149,7 @@ def aggregate(r: dict) -> dict:
     return out
 
 
-def merge(paths) -> dict:
+def merge(paths: Iterable[str | Path]) -> dict:
     """Merge several single-seed ``seeds.json`` files (e.g. one per CI job) into one study."""
     rs = [json.loads(Path(p).read_text()) for p in paths]
     per_seed = {k: v for r in rs for k, v in r["per_seed"].items()}
@@ -154,6 +157,7 @@ def merge(paths) -> dict:
 
 
 def to_markdown(r: dict) -> str:
+    """Markdown tables (mean [95 % CI]) of a seed study, including the poisoning aggregate."""
     eps = [str(float(e)) for e in r["eps"]]
     L = [f"# Multi-seed robustness: {r['dataset']}", "",
          f"Seeds {r['seeds']} (n={len(r['seeds'])}); mean with 95 % Student-t CI across seeds. "
@@ -161,7 +165,7 @@ def to_markdown(r: dict) -> str:
          "| model | clean F1 | FPR | " + " | ".join(f"eps={e}" for e in eps) + " |",
          "|---|---|---|" + "---|" * len(eps)]
 
-    def f(ci):
+    def f(ci: dict) -> str:
         return f"{ci['mean']:.3f} [{ci['ci95'][0]:.3f}, {ci['ci95'][1]:.3f}]"
 
     for name, a in r["aggregate"].items():
@@ -185,11 +189,13 @@ def to_markdown(r: dict) -> str:
 
 
 def max_wilson_halfwidth(n: int) -> float:
+    """Largest Wilson 95 % half-width at ``n`` trials (attained at p = 0.5)."""
     lo, hi = wilson(n // 2, n)
     return (hi - lo) / 2
 
 
-def save(r: dict, out_dir) -> Path:
+def save(r: dict, out_dir: str | Path) -> Path:
+    """Write ``seeds.json`` and ``seeds.md`` into ``out_dir``."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     (out / "seeds.json").write_text(json.dumps(r, indent=2))

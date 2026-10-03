@@ -1,13 +1,21 @@
 """Hardening: adversarial training, robust-feature selection, adversarial-input detection."""
 from __future__ import annotations
 
+from collections.abc import Callable
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from .metrics import metrics_from_scores
 from .schema import Schema
 
+if TYPE_CHECKING:
+    from .model import BaseDetector
 
-def adversarial_training(det, X, y, attack, eps=1.0, rounds=3, n_adv=None, seed=0):
+
+def adversarial_training(det: BaseDetector, X: np.ndarray, y: np.ndarray,
+                         attack: Callable[[BaseDetector, np.ndarray, float], np.ndarray], eps: float = 1.0,
+                         rounds: int = 3, n_adv: int | None = None, seed: int = 0) -> BaseDetector:
     """Return a hardened copy of ``det``.
 
     Each round crafts evasions of (a sample of) the malicious training flows against the
@@ -47,18 +55,19 @@ class AdversarialInputDetector:
     deployed detector's own score (adversarial flows cluster just under the threshold).
     """
 
-    def __init__(self, target, seed=0):
+    def __init__(self, target: BaseDetector, seed: int = 0) -> None:
         from xgboost import XGBClassifier
 
         self.target = target
         self.clf = XGBClassifier(n_estimators=200, max_depth=6, learning_rate=0.1,
                                  tree_method="hist", random_state=seed, n_jobs=-1)
 
-    def _feat(self, X):
+    def _feat(self, X: np.ndarray) -> np.ndarray:
         Z = self.target.pre.transform(X)
         return np.column_stack([Z, self.target.predict_proba_z(Z)])
 
-    def fit(self, X_clean, X_adv):
+    def fit(self, X_clean: np.ndarray, X_adv: np.ndarray) -> AdversarialInputDetector:
+        """Train clean (0) vs adversarial (1) and set the alarm threshold at 1 % clean FPR."""
         F = np.vstack([self._feat(X_clean), self._feat(X_adv)])
         lab = np.r_[np.zeros(len(X_clean)), np.ones(len(X_adv))]
         self.clf.fit(F, lab)
@@ -66,14 +75,16 @@ class AdversarialInputDetector:
         self.thr = float(np.quantile(self.clf.predict_proba(self._feat(X_clean))[:, 1], 0.99))
         return self
 
-    def score(self, X):
+    def score(self, X: np.ndarray) -> np.ndarray:
+        """Adversarial-input score of raw flows (higher = more likely optimised against us)."""
         return self.clf.predict_proba(self._feat(X))[:, 1]
 
-    def score_z(self, Z):
+    def score_z(self, Z: np.ndarray) -> np.ndarray:
+        """Same as :meth:`score`, for z-space inputs."""
         F = np.column_stack([Z, self.target.predict_proba_z(Z)])
         return self.clf.predict_proba(F)[:, 1]
 
-    def guarded(self):
+    def guarded(self) -> BaseDetector:
         """Deployed system = target OR adversarial-input alarm, as one attackable detector."""
         from .model import BaseDetector
 
@@ -82,17 +93,18 @@ class AdversarialInputDetector:
         class Guarded(BaseDetector):
             name = "guarded"
 
-            def __init__(self):
+            def __init__(self) -> None:
                 super().__init__()
                 self.pre = aid.target.pre
 
-            def predict_proba_z(self, Z):
+            def predict_proba_z(self, Z: np.ndarray) -> np.ndarray:
                 a = aid.score_z(Z)
                 return np.maximum(aid.target.predict_proba_z(Z), 0.5 * a / max(aid.thr, 1e-9))
 
         return Guarded()
 
-    def evaluate(self, X_clean, X_adv):
+    def evaluate(self, X_clean: np.ndarray, X_adv: np.ndarray) -> dict:
+        """ROC-AUC, TPR and FPR of the alarm at its threshold on held-out clean / adversarial flows."""
         s = np.r_[self.score(X_clean), self.score(X_adv)]
         lab = np.r_[np.zeros(len(X_clean)), np.ones(len(X_adv))]
         m = metrics_from_scores(s, lab, thr=self.thr)

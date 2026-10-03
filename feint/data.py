@@ -8,12 +8,17 @@ from __future__ import annotations
 
 import os
 import re
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import numpy as np
 
 from .schema import CIC_SCHEMA, IOT_SCHEMA, MTU, UNSW_SCHEMA, Schema
+
+if TYPE_CHECKING:
+    import pandas as pd
 
 
 def data_root() -> Path:
@@ -26,6 +31,8 @@ DATA_ROOT = data_root()  # kept for backwards compatibility; loaders call data_r
 
 @dataclass
 class Dataset:
+    """Flows in schema column order with binary labels, attack families and grouping info."""
+
     X: np.ndarray
     y: np.ndarray  # 1 = malicious
     feature_names: list
@@ -35,6 +42,7 @@ class Dataset:
     info: dict = field(default_factory=dict)
 
     def subset(self, m: np.ndarray) -> Dataset:
+        """Rows selected by the boolean mask or index array ``m`` (``info`` is copied)."""
         return Dataset(self.X[m], self.y[m], self.feature_names, self.schema,
                        None if self.attack is None else self.attack[m],
                        None if self.group is None else self.group[m], dict(self.info))
@@ -54,7 +62,9 @@ def synthetic_flows(n: int = 4000, attack_frac: float = 0.3, seed: int = 0) -> D
     n_att = int(n * attack_frac)
     n_ben = n - n_att
 
-    def block(k, dur, fp, bp, fbpp, bbpp, syn, ports, win_f, win_b, name):
+    def block(k: int, dur: float, fp: float, bp: float, fbpp: float, bbpp: float, syn: float,
+              ports: Sequence[int] | np.ndarray, win_f: Sequence[int], win_b: Sequence[int],
+              name: str) -> tuple[np.ndarray, list[str]]:
         X = np.zeros((k, len(s.features)))
         fwd_pkts = np.maximum(1, rng.poisson(fp, k)).astype(float)
         bwd_pkts = rng.poisson(bp, k).astype(float)
@@ -135,7 +145,7 @@ def _key(c: str) -> str:
     return re.sub(r"[^a-z0-9]", "", str(c).lower())
 
 
-def _canonical_columns(columns) -> dict:
+def _canonical_columns(columns: Iterable[str]) -> dict:
     """Map raw CSV header names to the canonical CIC-IDS2017 names (only the ones we use)."""
     lookup = {_key(a): canon for canon, al in CIC_ALIASES.items() for a in al}
     out = {}
@@ -174,7 +184,8 @@ def _norm_label(s: str) -> str:
     return re.sub(r"\s*-+\s*", " - ", s) if "Web Attack" in s else s
 
 
-def _frame_to_cic(df, source: str = "", attempted: str = "benign") -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def _frame_to_cic(df: pd.DataFrame, source: str = "",
+                  attempted: str = "benign") -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     import pandas as pd
 
     df = df.rename(columns=_canonical_columns(df.columns))
@@ -277,7 +288,7 @@ def load_cicids2017(root: str | Path | None = None, frac: float = 0.1, keep_rare
 
 
 # ------------------------------------------------- CSE-CIC-IDS2018 / corrected CIC-IDS2017
-def _read_cic_files(files, name: str, per_class: int, seed: int, attempted: str = "benign",
+def _read_cic_files(files: Sequence[Path], name: str, per_class: int, seed: int, attempted: str = "benign",
                     chunksize: int = 250_000, info_extra: dict | None = None) -> Dataset:
     """Stream CICFlowMeter CSVs in chunks (12 columns only) with per-class reservoir caps.
 
@@ -352,7 +363,7 @@ def load_cicids2017_corrected(root: str | Path | None = None, per_class: int = 2
 IOT_COLS = ["duration", "packets", "bytes", "packets_rev", "bytes_rev", "dst_port", "protocol", "label_class"]
 
 
-def _frame_to_iot(df) -> tuple[np.ndarray, np.ndarray]:
+def _frame_to_iot(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
     s = IOT_SCHEMA
     X = np.zeros((len(df), len(s.features)))
     for c in ("duration", "packets", "bytes", "packets_rev", "bytes_rev", "dst_port"):
@@ -405,7 +416,7 @@ UNSW_DIRECT = ["dur", "spkts", "dpkts", "sbytes", "dbytes", "sttl", "dttl", "swi
                "trans_depth", "ct_srv_src", "ct_dst_ltm", "ct_src_ltm", "ct_srv_dst"]
 
 
-def _frame_to_unsw(df) -> tuple[np.ndarray, np.ndarray]:
+def _frame_to_unsw(df: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
     s = UNSW_SCHEMA
     X = np.zeros((len(df), len(s.features)))
     for c in UNSW_DIRECT:

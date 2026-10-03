@@ -4,8 +4,10 @@ from __future__ import annotations
 import dataclasses
 import json
 import time
+from contextlib import AbstractContextManager
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 from sklearn.model_selection import train_test_split
@@ -17,6 +19,7 @@ from .harden import AdversarialInputDetector, adversarial_training, robust_featu
 from .metrics import area_under_curve, detection_metrics, robustness_curve
 from .model import (
     AutoencoderDetector,
+    BaseDetector,
     EnsembleDetector,
     IForestDetector,
     MLPDetector,
@@ -33,6 +36,8 @@ DEFAULT_EPS = [0.0, 0.25, 0.5, 1.0, 1.5, 2.0]
 
 @dataclass
 class StudyConfig:
+    """Settings of one study; :meth:`quick` gives tiny models and budgets for CI and smoke tests."""
+
     eps: list = field(default_factory=lambda: list(DEFAULT_EPS))
     seed: int = 0
     adv_eps: float = 2.0
@@ -51,7 +56,8 @@ class StudyConfig:
     baselines: bool = True
 
     @classmethod
-    def quick(cls, **kw):
+    def quick(cls, **kw: Any) -> StudyConfig:
+        """Small, fast configuration (overridable with keyword arguments)."""
         base = dict(adv_rounds=1, adv_n=300, steps=5, iters=15, max_eval=150, n_cf=20,
                     poison_max_train=3000, mlp_hidden=(16,), xgb_trees=40, fast=True)
         base.update(kw)
@@ -65,7 +71,8 @@ def restrict(schema: Schema, feats: list[str]) -> Schema:
                                integer=list(schema.integer))
 
 
-def split(ds: Dataset, seed=0):
+def split(ds: Dataset, seed: int = 0) -> tuple[Dataset, Dataset, str]:
+    """(train, test, description): UNSW-NB15's official partition, else a stratified 70/30 split."""
     if ds.info.get("name") == "unsw_nb15" and ds.group is not None and len(set(ds.group)) == 2:
         tr, te = ds.group == 0, ds.group == 1  # official partition
         return ds.subset(tr), ds.subset(te), "official train/test partition"
@@ -77,26 +84,31 @@ def split(ds: Dataset, seed=0):
 
 
 class Timer:
-    def __init__(self):
+    """Wall-clock seconds of named blocks: ``with timer("name"): ...`` records ``timer.t["name"]``."""
+
+    def __init__(self) -> None:
         self.t = {}
 
-    def __call__(self, name):
+    def __call__(self, name: str) -> AbstractContextManager[None]:
+        """Context manager that times its block under ``name``."""
         tm = self
 
         class _C:
-            def __enter__(self_):
+            def __enter__(self_) -> None:
                 self_.s = time.time()
 
-            def __exit__(self_, *a):
+            def __exit__(self_, *a: object) -> None:
                 tm.t[name] = round(time.time() - self_.s, 2)
         return _C()
 
 
-def _log(msg):
+def _log(msg: str) -> None:
     print(f"[feint {time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
-def train_members(Xtr, ytr, cfg: StudyConfig, pre: Preprocessor):
+def train_members(Xtr: np.ndarray, ytr: np.ndarray, cfg: StudyConfig,
+                  pre: Preprocessor) -> tuple[MLPDetector, XGBDetector, AutoencoderDetector]:
+    """Train the ensemble members (MLP, XGBoost, benign autoencoder) on a shared preprocessor."""
     Ztr = pre.transform(Xtr)
     mlp = MLPDetector(hidden=cfg.mlp_hidden, seed=cfg.seed, max_iter=60 if cfg.fast else 200)
     xgb = XGBDetector(seed=cfg.seed, n_estimators=cfg.xgb_trees, max_depth=4 if cfg.fast else 8)
@@ -111,7 +123,14 @@ def train_members(Xtr, ytr, cfg: StudyConfig, pre: Preprocessor):
 
 
 def run_study(ds: Dataset | None = None, cfg: StudyConfig | None = None, return_models: bool = False,
-              **kw):
+              **kw: Any) -> dict | tuple[dict, dict]:
+    """Full study on ``ds`` (synthetic flows by default); returns the report, and the models if asked.
+
+    Steps: train detectors and baselines, adversarially train and fit the robust-feature model,
+    clean metrics, constrained and textbook robustness curves, SHAP and counterfactuals, the
+    adversarial-input alarm, poisoning and (CIC-IDS2017) temporal drift. ``kw`` builds a
+    :class:`StudyConfig` when ``cfg`` is None.
+    """
     cfg = cfg or StudyConfig(**kw)
     ds = ds or synthetic_flows(seed=cfg.seed)
     schema = ds.schema
@@ -146,7 +165,8 @@ def run_study(ds: Dataset | None = None, cfg: StudyConfig | None = None, return_
         models = {"logreg": lr, "random_forest": rf, "iforest": iso, **models}
 
     # ------------------------------------------------------------------ 2. hardening
-    def atk(det, X, eps, constrained=True, sch=schema):
+    def atk(det: BaseDetector, X: np.ndarray, eps: float, constrained: bool = True,
+            sch: Schema = schema) -> np.ndarray:
         return adaptive(det, X, sch, eps=eps, constrained=constrained, surrogate=mlp,
                         steps=cfg.steps, iters=cfg.iters, seed=cfg.seed)
 
@@ -168,7 +188,7 @@ def run_study(ds: Dataset | None = None, cfg: StudyConfig | None = None, return_
     models.update({"mlp_adv_trained": mlp_adv, "xgboost_adv_trained": xgb_adv,
                    "ensemble_adv_trained": ens_adv, "xgboost_robust_features": xgb_rob})
 
-    def atk_hard(det, X, eps, constrained=True):
+    def atk_hard(det: BaseDetector, X: np.ndarray, eps: float, constrained: bool = True) -> np.ndarray:
         return adaptive(det, X, schema, eps=eps, constrained=constrained, surrogate=[mlp, mlp_adv],
                         steps=cfg.steps, iters=cfg.iters, seed=cfg.seed)
 
@@ -294,7 +314,7 @@ def run_study(ds: Dataset | None = None, cfg: StudyConfig | None = None, return_
         ntr = min(cfg.poison_max_train, len(ytr))
         pi = rng.choice(len(ytr), size=ntr, replace=False)
 
-        def factory(X, y):
+        def factory(X: np.ndarray, y: np.ndarray) -> BaseDetector:
             d = XGBDetector(seed=cfg.seed, n_estimators=cfg.xgb_trees, max_depth=4 if cfg.fast else 8)
             return d.fit(X, y, pre=pre)
 
@@ -330,7 +350,8 @@ def drift_study(ds: Dataset, cfg: StudyConfig) -> dict:
     return out
 
 
-def detection_metrics_from_pred(p, y):
+def detection_metrics_from_pred(p: np.ndarray, y: np.ndarray) -> dict:
+    """Recall, precision and FPR from hard predictions ``p`` and labels ``y``."""
     tp = int(((p == 1) & (y == 1)).sum())
     fp = int(((p == 1) & (y == 0)).sum())
     fn = int(((p == 0) & (y == 1)).sum())
@@ -359,7 +380,8 @@ def environment() -> dict:
             "xgboost": xgboost.__version__, "git_commit": commit}
 
 
-def save(report, out_dir: str | Path, figures: bool = True):
+def save(report: dict, out_dir: str | Path, figures: bool = True) -> Path:
+    """Write ``report.json``, ``report.md`` and (optionally) the figures into ``out_dir``."""
     from .report import to_markdown, write_figures
 
     out = Path(out_dir)

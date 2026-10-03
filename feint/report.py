@@ -12,11 +12,12 @@ PRETTY = {
 }
 
 
-def _p(name):
+def _p(name: str) -> str:
     return PRETTY.get(name, name)
 
 
 def to_markdown(r: dict) -> str:
+    """Markdown report of a study: clean metrics, curves, families, SHAP, counterfactuals, poisoning, drift."""
     ds = r.get("dataset", {})
     L = [f"# FEINT robustness report: {ds.get('name', '?')}", ""]
     L += [f"- split: {r['split']}; train {r['n_train']:,} / test {r['n_test']:,} flows; "
@@ -128,6 +129,7 @@ def to_markdown(r: dict) -> str:
 
 
 def write_figures(r: dict, out: Path) -> list[Path]:
+    """Robustness-curve, SHAP and drift PNGs in ``out``; returns the written paths (none without matplotlib)."""
     try:
         import matplotlib
 

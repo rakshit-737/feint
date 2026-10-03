@@ -1,7 +1,8 @@
 """Detection metrics, robustness curves and base-rate-honest precision."""
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
+from typing import TYPE_CHECKING
 
 import numpy as np
 from sklearn.metrics import (
@@ -15,13 +16,22 @@ from sklearn.metrics import (
 
 from .schema import Schema
 
+if TYPE_CHECKING:
+    from .model import BaseDetector
 
-def detection_metrics(det, X, y, thr=0.5):
+
+def detection_metrics(det: BaseDetector, X: np.ndarray, y: np.ndarray, thr: float = 0.5) -> dict:
+    """Clean detection metrics of ``det`` on flows ``X`` (see :func:`metrics_from_scores`)."""
     p = det.predict_proba(X)
     return metrics_from_scores(p, y, thr)
 
 
-def metrics_from_scores(p, y, thr=0.5):
+def metrics_from_scores(p: np.ndarray, y: np.ndarray, thr: float = 0.5) -> dict:
+    """Accuracy, precision, recall, F1, ROC-AUC, PR-AUC, FPR and precision at 1 % / 0.1 % prevalence.
+
+    ``p`` are malicious scores, ``y`` binary labels (1 = malicious), ``thr`` the alert threshold.
+    AUCs are NaN when ``y`` has a single class.
+    """
     y = np.asarray(y)
     yhat = (p >= thr).astype(int)
     tn = int(((yhat == 0) & (y == 0)).sum())
@@ -51,7 +61,8 @@ def precision_at_base_rate(tpr: float, fpr: float, prevalence: float) -> float:
 AttackFn = Callable[[object, np.ndarray, float], np.ndarray]
 
 
-def robustness_curve(det, X_mal, eps_list, schema: Schema, attack: AttackFn, constrained=True):
+def robustness_curve(det: BaseDetector, X_mal: np.ndarray, eps_list: Sequence[float], schema: Schema,
+                     attack: AttackFn, constrained: bool = True) -> list[dict]:
     """Detection rate on malicious flows vs perturbation budget eps.
 
     ``attack(det, X_mal, eps)`` returns adversarial flows. Also reports attack success
@@ -75,7 +86,7 @@ def robustness_curve(det, X_mal, eps_list, schema: Schema, attack: AttackFn, con
     return out
 
 
-def area_under_curve(curve) -> float:
+def area_under_curve(curve: list[dict]) -> float:
     """Mean detection rate over the eps grid (trapezoid, normalised to [0, 1])."""
     e = np.array([c["eps"] for c in curve])
     d = np.array([c["detection_rate"] for c in curve])

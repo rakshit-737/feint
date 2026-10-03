@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import json
 import time
+from collections.abc import Iterable, Sequence
 from pathlib import Path
 
 import numpy as np
@@ -35,7 +36,7 @@ SHARAFALDIN_T4 = {  # weighted Pr, Rc, F1 and execution time (s), verbatim from 
 }
 
 
-def _classifiers(seed: int):
+def _classifiers(seed: int) -> dict:
     from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
     from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
     from sklearn.naive_bayes import GaussianNB
@@ -65,11 +66,11 @@ _CORRECTED_ALIASES = {"Init_Win_bytes_forward": "FWD Init Win Bytes",
                       "Init_Win_bytes_backward": "Bwd Init Win Bytes"}
 
 
-def _resolve_columns(header, wanted) -> dict:
+def _resolve_columns(header: Sequence[str], wanted: Iterable[str]) -> dict:
     """Map each wanted MachineLearningCVE name to a header column of another CICFlowMeter release."""
     from .data import _key
 
-    def k(c):
+    def k(c: str) -> str:
         return _key(c).rstrip("s")
 
     by_key = {}
@@ -87,8 +88,8 @@ def _resolve_columns(header, wanted) -> dict:
     return out
 
 
-def sharafaldin2018(root=None, seed: int = 0, knn_max_train: int = 300_000, models=None,
-                    corrected: bool = False) -> dict:
+def sharafaldin2018(root: str | Path | None = None, seed: int = 0, knn_max_train: int = 300_000,
+                    models: Sequence[str] | None = None, corrected: bool = False) -> dict:
     """Multi-class reproduction of Table 4 (duplicates kept).
 
     ``corrected=False`` uses the original MachineLearningCVE CSVs; ``corrected=True`` the corrected
@@ -179,7 +180,7 @@ def sharafaldin2018(root=None, seed: int = 0, knn_max_train: int = 300_000, mode
     return out
 
 
-def moustafa_slay2016(root=None, seed: int = 0) -> dict:
+def moustafa_slay2016(root: str | Path | None = None, seed: int = 0) -> dict:
     """Classic classifiers on the official UNSW-NB15 partition (binary label), all published columns."""
     import warnings
 
@@ -221,6 +222,7 @@ def moustafa_slay2016(root=None, seed: int = 0) -> dict:
 
 
 def to_markdown(r: dict) -> str:
+    """Markdown table of a reproduction: the paper's numbers, ours and the assumptions."""
     L = [f"# Reproduction: {r['paper']}", "", "Assumptions:", ""] + [f"- {a}" for a in r["assumptions"]] + [""]
     if "paper_dt" in r:
         L += ["| model | accuracy | FAR |", "|---|---|---|",
@@ -236,7 +238,8 @@ def to_markdown(r: dict) -> str:
     return "\n".join(L) + "\n"
 
 
-def save(r: dict, out_dir, name: str) -> Path:
+def save(r: dict, out_dir: str | Path, name: str) -> Path:
+    """Write ``<name>.json`` (with the environment) and ``<name>.md`` into ``out_dir``."""
     from .pipeline import environment
 
     out = Path(out_dir)

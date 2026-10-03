@@ -15,24 +15,42 @@ returned flow passes ``schema.is_valid``; ``constrained=False`` is the textbook
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
+from typing import TYPE_CHECKING
+
 import numpy as np
 
 from .schema import Schema
+
+if TYPE_CHECKING:
+    from .model import BaseDetector
 
 
 def _mask(schema: Schema, n: int, constrained: bool) -> np.ndarray:
     return schema.mask() if constrained else np.ones(n)
 
 
-def _finish(det, schema, Z, X, constrained):
+def _finish(det: BaseDetector, schema: Schema, Z: np.ndarray, X: np.ndarray, constrained: bool) -> np.ndarray:
     Xa = det.pre.inverse(Z)
     return schema.project(Xa, X) if constrained else Xa
 
 
-def pgd(det, X, schema: Schema, eps=0.5, steps=20, alpha=None, constrained=True, y=None):
+def pgd(det: BaseDetector, X: np.ndarray, schema: Schema, eps: float = 0.5, steps: int = 20,
+        alpha: float | None = None, constrained: bool = True, y: np.ndarray | None = None) -> np.ndarray:
     """L_inf PGD maximising the detector's loss on label ``y`` (default: all malicious).
 
-    Returns raw-space adversarial flows.
+    Args:
+        det: a differentiable detector (one with ``grad_z``).
+        X: raw flows, one per row.
+        schema: the attacker-capability schema used for projection.
+        eps: L_inf budget in z-space.
+        steps: number of gradient steps.
+        alpha: step size (default ``2.5 * eps / steps``).
+        constrained: project every step onto realisable flows.
+        y: labels whose loss is maximised (default: all malicious).
+
+    Returns:
+        Raw-space adversarial flows, same shape as ``X``.
     """
     X = np.asarray(X, dtype=float)
     y = np.ones(len(X)) if y is None else np.asarray(y, dtype=float)
@@ -51,14 +69,17 @@ def pgd(det, X, schema: Schema, eps=0.5, steps=20, alpha=None, constrained=True,
     return _finish(det, schema, Z, X, constrained)
 
 
-def random_search(det, X, schema: Schema, eps=0.5, iters=100, constrained=True, seed=0,
-                  X_start=None, p_init=0.5):
+def random_search(det: BaseDetector, X: np.ndarray, schema: Schema, eps: float = 0.5, iters: int = 100,
+                  constrained: bool = True, seed: int = 0, X_start: np.ndarray | None = None,
+                  p_init: float = 0.5) -> np.ndarray:
     """Score-based black-box evasion (Square-Attack-style coordinate sign search).
 
     Each iteration proposes, per flow, a vertex of the eps-ball on a random subset of the
     allowed coordinates, projects it, queries ``predict_proba`` and keeps it if the
     malicious score went down. Flows already classified benign stop moving.
-    Query cost: ``iters`` batched ``predict_proba`` calls.
+    Query cost: ``iters`` batched ``predict_proba`` calls. ``X_start`` warm-starts the search
+    (e.g. from a transfer attack); ``p_init`` is the initial fraction of coordinates changed.
+    Returns raw-space adversarial flows, same shape as ``X``.
     """
     X = np.asarray(X, dtype=float)
     if eps <= 0 or len(X) == 0:
@@ -99,8 +120,9 @@ def random_search(det, X, schema: Schema, eps=0.5, iters=100, constrained=True, 
     return schema.project(cur_X, X) if constrained else cur_X
 
 
-def adaptive(det, X, schema: Schema, eps=0.5, constrained=True, surrogate=None, steps=20,
-             iters=100, seed=0):
+def adaptive(det: BaseDetector, X: np.ndarray, schema: Schema, eps: float = 0.5, constrained: bool = True,
+             surrogate: BaseDetector | Sequence[BaseDetector | None] | None = None, steps: int = 20,
+             iters: int = 100, seed: int = 0) -> np.ndarray:
     """Strongest attack we have against ``det``.
 
     * differentiable detector: white-box PGD, then black-box search seeded from it
@@ -137,9 +159,11 @@ def adaptive(det, X, schema: Schema, eps=0.5, constrained=True, surrogate=None, 
     return np.stack(cands)[best, np.arange(len(X))]
 
 
-def is_valid(X, X_orig, schema: Schema, tol: float = 1e-6):
+def is_valid(X: np.ndarray, X_orig: np.ndarray, schema: Schema, tol: float = 1e-6) -> np.ndarray:
+    """Row mask of realisable flows; shorthand for :meth:`Schema.is_valid`."""
     return schema.is_valid(X, X_orig, tol)
 
 
-def project_constraints(X_adv, X_orig, schema: Schema):
+def project_constraints(X_adv: np.ndarray, X_orig: np.ndarray, schema: Schema) -> np.ndarray:
+    """Project perturbed flows onto realisable ones; shorthand for :meth:`Schema.project`."""
     return schema.project(X_adv, X_orig)

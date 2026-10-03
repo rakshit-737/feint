@@ -10,6 +10,7 @@ study shows whether a defence's gain survives a change of network and capture ye
 from __future__ import annotations
 
 import json
+from collections.abc import Sequence
 from pathlib import Path
 
 import numpy as np
@@ -31,7 +32,7 @@ def harmonise(ds: Dataset) -> Dataset:
     return out
 
 
-def xdata_study(train: Dataset, test: Dataset, seeds=(0, 1, 2), cfg: StudyConfig | None = None,
+def xdata_study(train: Dataset, test: Dataset, seeds: Sequence[int] = (0, 1, 2), cfg: StudyConfig | None = None,
                 max_test: int = 50_000) -> dict:
     """Train on ``train``, evaluate on ``test`` (both harmonised) for every seed."""
     cfg = cfg or StudyConfig()
@@ -85,7 +86,9 @@ def xdata_study(train: Dataset, test: Dataset, seeds=(0, 1, 2), cfg: StudyConfig
 
 
 def to_markdown(r: dict) -> str:
-    def f(ci):
+    """Markdown tables of a cross-dataset study (aggregate and per-family recall)."""
+
+    def f(ci: dict) -> str:
         return f"{ci['mean']:.3f} [{ci['ci95'][0]:.3f}, {ci['ci95'][1]:.3f}]"
 
     eps = [str(float(e)) for e in r["eps"]]
@@ -106,7 +109,8 @@ def to_markdown(r: dict) -> str:
     return "\n".join(L) + "\n"
 
 
-def save(r: dict, out_dir) -> Path:
+def save(r: dict, out_dir: str | Path) -> Path:
+    """Write ``xdata.json`` and ``xdata.md`` into ``out_dir``."""
     out = Path(out_dir)
     out.mkdir(parents=True, exist_ok=True)
     (out / "xdata.json").write_text(json.dumps(r, indent=2))
