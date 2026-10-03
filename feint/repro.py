@@ -205,7 +205,7 @@ def moustafa_slay2016(root: str | Path | None = None, seed: int = 0) -> dict:
             "NB": GaussianNB(),
             "ANN": make_pipeline(StandardScaler(), MLPClassifier(random_state=seed, max_iter=200))}
     out = {"paper": "Moustafa & Slay 2016, Inf. Secur. J. 25(1-3); DT accuracy 85.56 %, FAR 15.78 % "
-                    "(secondary sources; the paper is paywalled)",
+                    "(unverified: paper paywalled, no open copy or open secondary source found)",
            "paper_dt": {"accuracy": 0.8556, "far": 0.1578},
            "assumptions": ["official training (175,341) / testing (82,332) partition, binary label",
                            "all 42 published feature columns; proto / service / state one-hot",

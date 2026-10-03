@@ -250,8 +250,10 @@ binary F1 0.994; on the UNSW-NB15 official split XGBoost reaches 86.6 % accuracy
 85.6 % decision tree (see the reproduction table for a like-for-like run). Published numbers use different feature
 sets and preprocessing and are shown for orientation, not as a controlled comparison.
 The Sharafaldin et al. figure (RF: Pr 0.98, Rc 0.97, F1 0.97) was checked against Table 4 of the
-ICISSP 2018 paper; the Moustafa & Slay figure (DT: 85.56 % accuracy, 15.78 % FAR) was checked
-against secondary sources only, as the paper itself is paywalled.
+ICISSP 2018 paper; the Moustafa & Slay figure (DT: 85.56 % accuracy, 15.78 % FAR) is **unverified**:
+the paper is paywalled, and no legitimate open copy (author page, UNSWorks, the UNSW-NB15 dataset page) or open
+secondary source restating these numbers could be found (searched 2026-10; arXiv 1811.05372, 2008.07405, 2009.13067
+and 1711.02825 cite the paper but do not restate them). Treat it as an unconfirmed orientation figure.
 
 [^ms16]: N. Moustafa, J. Slay. *The evaluation of Network Anomaly Detection Systems: Statistical
     analysis of the UNSW-NB15 data set and the comparison with the KDD99 data set.* Information
@@ -315,12 +317,12 @@ point for it. Both gains are conditional on the schema being right (see Limitati
 
 | paper (setup) | metric | paper | our reproduction under the paper's setup | FEINT (own setup) |
 |---|---|---|---|---|
-| Moustafa & Slay 2016, decision tree, official UNSW-NB15 split, all 42 features ([json](results/repro/moustafa2016.json)) | accuracy / FAR | 0.8556 / 0.1578 (secondary source) | 0.8649 / 0.2484 | XGBoost, 22 features: 0.8655 / FPR 0.259 |
+| Moustafa & Slay 2016, decision tree, official UNSW-NB15 split, all 42 features ([json](results/repro/moustafa2016.json)) | accuracy / FAR | 0.8556 / 0.1578 (unverified, see note) | 0.8649 / 0.2484 | XGBoost, 22 features: 0.8655 / FPR 0.259 |
 | Sharafaldin et al. 2018 Table 4, RF on the union of the Table 3 per-attack selected features, weighted multi-class P/R/F1, split not reported | F1 | 0.97 | RF 0.999 (KNN 0.995, ID3 0.998, AdaBoost 0.888, MLP 0.981, NB 0.141; QDA with defaults cannot be fitted, QDA with reg_param=1e-3 and the 3 classes with fewer rows than features dropped from training: 0.869) ([json](results/repro/sharafaldin2018.json)); on corrected CIC-IDS2017 (Engelen et al. 2021): RF 0.995, KNN 0.993, ID3 0.995, AdaBoost 0.954, MLP 0.994, NB 0.365 ([json](results/repro/sharafaldin2018_corrected.json)) | binary F1 0.994 on 11 de-duplicated schema features; not like-for-like |
 | Vitorino et al. 2022 (A2PM, adversarial NIDS), CIC-IDS2017 Tuesday + Wednesday, 8 classes, stratified 70/30, the paper's RF and Keras MLP, regular and A2PM adversarial training, 50-iteration A2PM attacks, seed 0 ([json](results/repro/vitorino2022.json), [report](results/repro/vitorino2022.md)) | accuracy on malicious flows after 50 iterations, targeted / untargeted; untargeted macro-F1 | RF 0.000 / 0.000 / 0.209; RF + adv. training 0.999 / 0.900 / 0.543; MLP 0.104 / 0.009 / 0.183; MLP + adv. training 0.944 / 0.789 / 0.510 (Figures 5-7) | RF 0.000 / 0.000 / 0.234; RF + adv. training 0.932 / 0.901 / 0.642; MLP 0.404 / 0.078 / 0.166; MLP + adv. training 0.947 / 0.931 / 0.603 | binary detection of all CIC-IDS2017 attack days under FEINT's realisable attack at eps=2 (5 seeds): XGBoost 0.405, XGBoost + adv. training 0.788; not like-for-like |
 
 Accuracy reproduces within one point; our false-alarm rate is far above the quoted 15.78 %, which
-we could check only against secondary sources (the paper is paywalled). The gap is not an obvious
+we could not verify (the paper is paywalled and no open copy or open secondary source was found). The gap is not an obvious
 definition mismatch: for our tree, the mean of FPR and FNR is 0.146, the false-discovery rate 0.175
 and the error rate 0.135, none of them 0.158. We therefore treat both published figures as unverified.
 

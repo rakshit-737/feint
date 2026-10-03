@@ -1,4 +1,4 @@
-# Reproduction: Moustafa & Slay 2016, Inf. Secur. J. 25(1-3); DT accuracy 85.56 %, FAR 15.78 % (secondary sources; the paper is paywalled)
+# Reproduction: Moustafa & Slay 2016, Inf. Secur. J. 25(1-3); DT accuracy 85.56 %, FAR 15.78 % (unverified: paper paywalled, no open copy or open secondary source found)
 
 Assumptions:
 
