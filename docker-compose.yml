@@ -3,7 +3,7 @@
 services:
   api:
     build: .
-    image: ghcr.io/rakshit-737/feint:latest
+    image: ghcr.io/rakshit-737/feint-adversarial-ids:latest
     command: ["serve", "--model", "/models/model.joblib", "--host", "0.0.0.0", "--port", "8000"]
     ports: ["127.0.0.1:8000:8000"]
     volumes: ["./results/unsw_nb15:/models:ro"]

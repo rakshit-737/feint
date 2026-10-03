@@ -1,8 +1,8 @@
 site_name: FEINT
 site_description: Adversarially-robust, explainable network intrusion detection
-site_url: https://rakshit-737.github.io/feint/
-repo_url: https://github.com/rakshit-737/feint
-repo_name: rakshit-737/feint
+site_url: https://rakshit-737.github.io/feint-adversarial-ids/
+repo_url: https://github.com/rakshit-737/feint-adversarial-ids
+repo_name: rakshit-737/feint-adversarial-ids
 edit_uri: ""
 theme:
   name: material

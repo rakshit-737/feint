@@ -1,8 +1,8 @@
 # FEINT
 
-[![ci](https://github.com/rakshit-737/feint/actions/workflows/ci.yml/badge.svg)](https://github.com/rakshit-737/feint/actions/workflows/ci.yml)
+[![ci](https://github.com/rakshit-737/feint-adversarial-ids/actions/workflows/ci.yml/badge.svg)](https://github.com/rakshit-737/feint-adversarial-ids/actions/workflows/ci.yml)
 ![python](https://img.shields.io/badge/python-3.10%2B-blue)
-[![docs](https://img.shields.io/badge/docs-github%20pages-blue)](https://rakshit-737.github.io/feint/)
+[![docs](https://img.shields.io/badge/docs-github%20pages-blue)](https://rakshit-737.github.io/feint-adversarial-ids/)
 [![license: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 ![data](https://img.shields.io/badge/data-CIC--IDS2017%20%7C%20UNSW--NB15%20%7C%20CIC--IDS2018%20%7C%20CICIoT2023-orange)
 
@@ -31,15 +31,15 @@ and reports **robustness curves and base-rate-honest precision** instead of one 
 > detects nothing on CSE-CIC-IDS2018's shared families (F1 0.000 at FPR 0.000: it calls every flow
 > benign); the robust-feature model reaches F1 0.51, mostly on SSH brute force.
 
-[![FEINT results dashboard: detection rate vs attack budget for every model on CIC-IDS2017](docs/img/dashboard.png)](https://rakshit-737.github.io/feint/demo/)
+[![FEINT results dashboard: detection rate vs attack budget for every model on CIC-IDS2017](docs/img/dashboard.png)](https://rakshit-737.github.io/feint-adversarial-ids/demo/)
 
-**Docs:** https://rakshit-737.github.io/feint/ · **Dashboard:** https://rakshit-737.github.io/feint/demo/ ·
+**Docs:** https://rakshit-737.github.io/feint-adversarial-ids/ · **Dashboard:** https://rakshit-737.github.io/feint-adversarial-ids/demo/ ·
 **Preprint draft:** [paper/feint.tex](paper/feint.tex)
 
 ## Try it in 60 seconds
 
-1. Open the [results dashboard](https://rakshit-737.github.io/feint/demo/) (no install).
-2. Or run a toy study in Docker: `docker run --rm ghcr.io/rakshit-737/feint:latest run --quick --n 2000 --eps 0 1 --no-figures --out /tmp/demo`
+1. Open the [results dashboard](https://rakshit-737.github.io/feint-adversarial-ids/demo/) (no install).
+2. Or run a toy study in Docker: `docker run --rm ghcr.io/rakshit-737/feint-adversarial-ids:latest run --quick --n 2000 --eps 0 1 --no-figures --out /tmp/demo`
 3. Or with pip: `pip install -e . && python -m feint run --quick --n 2000 --eps 0 1 --no-figures --out results/demo`
    prints a clean-metrics table and a detection-vs-eps table for each model (synthetic data, a few minutes on a laptop CPU).
 
@@ -192,7 +192,7 @@ never committed; `tests/fixtures/` holds ~930 sampled rows for CI.
 ## Quickstart
 
 ```bash
-git clone https://github.com/rakshit-737/feint && cd feint
+git clone https://github.com/rakshit-737/feint-adversarial-ids && cd feint
 pip install -e ".[dev]"                 # numpy, pandas, scikit-learn, xgboost (+ matplotlib, fastapi for dev)
 python -m pytest -q                     # real-data tests skip without datasets
 python -m feint run --quick --n 3000 --out results/demo   # synthetic smoke study (~5 min laptop CPU)
@@ -419,7 +419,7 @@ against the *defended* system, monotone curves, fixed-prevalence precision, and 
   published columns.
 - **Not implemented from the spec:** self-captured lab pcaps via CICFlowMeter (needs an isolated lab
   network and traffic generation; not feasible on this machine). The React dashboard is replaced by a
-  static JavaScript dashboard over the committed JSON reports ([demo](https://rakshit-737.github.io/feint/demo/)).
+  static JavaScript dashboard over the committed JSON reports ([demo](https://rakshit-737.github.io/feint-adversarial-ids/demo/)).
 
 ## Roadmap
 

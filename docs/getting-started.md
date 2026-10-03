@@ -1,7 +1,7 @@
 # Getting started
 
 ```bash
-git clone https://github.com/rakshit-737/feint && cd feint
+git clone https://github.com/rakshit-737/feint-adversarial-ids && cd feint
 pip install -e ".[dev]"                 # numpy, pandas, scikit-learn, xgboost (+ matplotlib, fastapi for dev)
 python -m pytest -q                     # real-data tests skip without datasets
 python -m feint run --quick --n 3000 --out results/demo   # 1-minute synthetic smoke study
@@ -39,6 +39,6 @@ python -m feint seeds --data cicids2017 --seeds 0 1 2 --out results/cicids2017
 ## Docker
 
 ```bash
-docker run --rm ghcr.io/rakshit-737/feint:latest run --quick --n 2000 --out /tmp/demo
+docker run --rm ghcr.io/rakshit-737/feint-adversarial-ids:latest run --quick --n 2000 --out /tmp/demo
 docker compose up api   # serves results/unsw_nb15/model.joblib on :8000 (train it first with --save-model)
 ```

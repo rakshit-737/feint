@@ -21,7 +21,7 @@ Trained on corrected CIC-IDS2017 and tested on CSE-CIC-IDS2018, plain XGBoost sc
 shared attack families (it calls every flow benign); the robust-feature model reaches F1 0.51, mostly on
 SSH brute force.
 
-**Try it in 60 seconds:** `docker run --rm ghcr.io/rakshit-737/feint:latest run --quick --n 2000 --eps 0 1 --no-figures --out /tmp/demo`
+**Try it in 60 seconds:** `docker run --rm ghcr.io/rakshit-737/feint-adversarial-ids:latest run --quick --n 2000 --eps 0 1 --no-figures --out /tmp/demo`
 
 - **[Getting started](getting-started.md)**: install, smoke study, API
 - **[Architecture](architecture.md)**: pipeline and module map

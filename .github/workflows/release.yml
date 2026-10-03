@@ -49,8 +49,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/rakshit-737/feint:${{ github.ref_name }}
-            ghcr.io/rakshit-737/feint:latest
+            ghcr.io/rakshit-737/feint-adversarial-ids:${{ github.ref_name }}
+            ghcr.io/rakshit-737/feint-adversarial-ids:latest
       - name: GitHub release (idempotent)
         env:
           GH_TOKEN: ${{ github.token }}

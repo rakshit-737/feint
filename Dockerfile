@@ -13,7 +13,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends libgomp1 \
 COPY --from=build /dist/*.whl /tmp/
 RUN pip install --no-cache-dir "$(ls /tmp/*.whl)[api,viz]" && rm /tmp/*.whl \
     && (pip uninstall -y nvidia-nccl-cu12 nvidia-nccl-cu13 || true) && python -c "import xgboost"
-LABEL org.opencontainers.image.source="https://github.com/rakshit-737/feint"
+LABEL org.opencontainers.image.source="https://github.com/rakshit-737/feint-adversarial-ids"
 HEALTHCHECK CMD python -c "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health')" || exit 1
 USER feint
 WORKDIR /home/feint

@@ -2,7 +2,7 @@
 
 Same data (CIC-IDS2017 Tuesday + Wednesday, 1137051 flows after dropping NaN/inf rows), split (stratified 70/30, seed 0), A2PM configuration and RF as [vitorino2022.md](vitorino2022.md), but run with the library's unvectorised pattern transforms. It took 4.2 h on a GitHub Actions runner (the vectorised run: 10 min). Differences from the main run: scikit-learn MLPClassifier (64, 32) instead of the paper's Keras MLP (no dropout, no class weights), and attacks of 1 iteration and of at most 50 iterations with a2pm's default early stopping (patience 2) instead of 50 iterations without early stopping.
 
-Provenance: [workflow run 37022412045](https://github.com/rakshit-737/feint/actions/runs/37022412045), commit 67d1a90 (script as of c215280); environment python 3.11.16, a2pm 1.2.0, numpy 1.26.4, sklearn 1.5.2.
+Provenance: [workflow run 37022412045](https://github.com/rakshit-737/feint-adversarial-ids/actions/runs/37022412045), commit 67d1a90 (script as of c215280); environment python 3.11.16, a2pm 1.2.0, numpy 1.26.4, sklearn 1.5.2.
 
 Accuracy on the malicious evaluation flows / macro-F1 over all evaluation flows:
 

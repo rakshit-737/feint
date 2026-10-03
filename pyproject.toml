@@ -35,7 +35,7 @@ dev = ["pytest>=7", "ruff>=0.4", "matplotlib>=3.7", "fastapi>=0.115", "starlette
 feint = "feint.cli:main"
 
 [project.urls]
-Repository = "https://github.com/rakshit-737/feint"
+Repository = "https://github.com/rakshit-737/feint-adversarial-ids"
 
 [tool.setuptools]
 packages = ["feint"]

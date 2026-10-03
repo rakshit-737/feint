@@ -12,7 +12,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
-GH = "https://github.com/rakshit-737/feint/blob/main/"
+GH = "https://github.com/rakshit-737/feint-adversarial-ids/blob/main/"
 PAGES = {"THREAT_MODEL.md": "threat-model.md", "SECURITY.md": "security.md", "CHANGELOG.md": "changelog.md"}
 
 
