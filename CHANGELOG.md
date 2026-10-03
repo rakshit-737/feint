@@ -30,6 +30,9 @@ All notable changes to this project are documented here. The format follows
 - Hardened tree models are attacked through both the undefended and the hardened MLP.
 - Corrected claims: budget semantics (constrained and textbook attacks are not budget-matched),
   defender-favourable schema assumptions, UNSW derived-feature agreement, Sharafaldin setup.
+- Docstrings and full type hints on every public function and method of the `feint` package
+  (109 of 109); ruff now enforces pydocstyle (Google convention) and flake8-annotations on `feint/`.
+- `bench.yml` study steps fail on a failing pipeline (`pipefail`).
 
 ### Fixed
 - Download helper: single stream, per-destination lock, size and hash checks; a corrupted local
