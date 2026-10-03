@@ -4,10 +4,10 @@ title: "FEINT: adversarially robust, explainable network intrusion detection und
 authors:
   - name: Rakshit
     affiliation: "Vellore Institute of Technology, Chennai"
-repository-code: "https://github.com/rakshit-737/feint"
-url: "https://rakshit-737.github.io/feint/"
+repository-code: "https://github.com/rakshit-737/feint-adversarial-ids"
+url: "https://rakshit-737.github.io/feint-adversarial-ids/"
 license: MIT
 type: software
-version: "1.1.1"
+version: "1.1.2"
 date-released: "2026-10-03"
 keywords: [intrusion-detection, adversarial-robustness, cicids2017, unsw-nb15, cicids2018, explainability]

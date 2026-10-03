@@ -6,6 +6,21 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.2] - 2026-10-03
+
+### Changed
+- Repository renamed to `rakshit-737/feint-adversarial-ids`: repo, docs (https://rakshit-737.github.io/feint-adversarial-ids/),
+  badge, citation and package URLs updated; the container image is now `ghcr.io/rakshit-737/feint-adversarial-ids`.
+  Older entries below keep the pre-rename names (`rakshit-737/feint`, `ghcr.io/rakshit-737/feint`).
+
+## [1.1.2] - 2026-10-03
+
+### Changed
+- Repository renamed to `rakshit-737/feint-adversarial-ids`. All links, badges, CITATION.cff,
+  mkdocs, pyproject URLs and the paper now point to https://github.com/rakshit-737/feint-adversarial-ids
+  and https://rakshit-737.github.io/feint-adversarial-ids/; the container image is now published as
+  `ghcr.io/rakshit-737/feint-adversarial-ids`. Older entries below keep the old names as history.
+
 ## [1.1.1] - 2026-10-03
 
 ### Changed
