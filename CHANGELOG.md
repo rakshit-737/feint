@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-10-03
+
 ### Added
 - Datasets: CSE-CIC-IDS2018 (three days used; all ten SHA-256 pinned from CI downloads whose size
   and S3 multipart ETag were verified, `download_cicids2018.py --print-pins`), corrected CIC-IDS2017

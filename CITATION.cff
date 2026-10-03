@@ -8,4 +8,6 @@ repository-code: "https://github.com/rakshit-737/feint"
 url: "https://rakshit-737.github.io/feint/"
 license: MIT
 type: software
+version: "1.1.0"
+date-released: "2026-10-03"
 keywords: [intrusion-detection, adversarial-robustness, cicids2017, unsw-nb15, cicids2018, explainability]
